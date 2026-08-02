@@ -241,7 +241,11 @@ export const CONFIG = {
     sirenDistance: 16,
     // emissive de ventanas / faros al 100% de noche
     windowEmissive: 1.3,
-    headlightEmissive: 2.2
+    headlightEmissive: 2.2,
+    // luz suave que sigue al personaje para que se vea bien de noche
+    playerLightColor: 0xffe6c2,
+    playerLightIntensity: 18,
+    playerLightDistance: 9
   },
 
   // ---- Dificultad progresiva ----------------------------------------------

@@ -11,6 +11,7 @@ import { CONFIG } from '../config.js';
 // =============================================================================
 
 const E = CONFIG.environment;
+const N = CONFIG.night;
 
 export class Lighting {
   constructor(scene) {
@@ -37,6 +38,12 @@ export class Lighting {
     scene.add(this.sun);
     scene.add(this.sun.target);
 
+    // ---- luz que sigue al personaje (se enciende de noche) ----
+    // Mantiene al jugador bien visible en la oscuridad sin inundar la escena.
+    this.playerLight = new THREE.PointLight(N.playerLightColor, 0, N.playerLightDistance, 2);
+    this.playerLight.castShadow = false;
+    scene.add(this.playerLight);
+
     // ---- paletas día / noche (para interpolar con nightFactor) ----
     this._dayNight = {
       sunColorDay: new THREE.Color(E.sunColor),
@@ -62,6 +69,8 @@ export class Lighting {
     this.sun.position.set(p.x - 60, 90, p.z + 40);
     this.sun.target.position.set(p.x, 0, p.z - 20);
     this.sun.target.updateMatrixWorld();
+    // la luz del personaje va a la altura del pecho, siguiéndolo
+    this.playerLight.position.set(p.x, p.y + 1.6, p.z);
   }
 
   // Interpola toda la iluminación entre día (nf=0) y noche (nf=1).
@@ -74,6 +83,8 @@ export class Lighting {
     this.hemi.color.copy(d.hemiSkyDay).lerp(d.hemiSkyNight, nf);
     this.hemi.groundColor.copy(d.hemiGroundDay).lerp(d.hemiGroundNight, nf);
     this.ambient.intensity = THREE.MathUtils.lerp(d.ambDay, d.ambNight, nf);
+    // el personaje se ilumina cuanto más oscuro está (0 de día, máx de noche)
+    this.playerLight.intensity = N.playerLightIntensity * nf;
   }
 
   // Compat: t=0 amanecer, 0.5 mediodía, 1 noche.
