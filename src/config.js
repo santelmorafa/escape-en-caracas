@@ -46,13 +46,13 @@ export const CONFIG = {
     lateralSpeed: 9,        // m/s al pulsar A/D
     corridorHalfWidth: 8.5, // límite lateral (el corredor mide ~17m)
     gravity: -32,
-    jumpVelocity: 13.5,     // apex ~2.8 m: permite subirse a techos bajos
+    jumpVelocity: 15.5,     // apex ~3.75 m: subes a las terrazas con holgura (limpio)
     hardLandingVy: -18,     // caídas más rápidas que esto disparan el roll
     slideDuration: 0.85,    // s
     slideSpeedBoost: 1.15,
     standHeight: 2.0,       // altura de colisión de pie (se recalcula del modelo)
     slideHeight: 1.0,       // agachado
-    radius: 0.5,
+    radius: 0.6,            // un poco más ancho: el modelo se pega menos a las paredes
     rollDuration: 0.7,
     stepHeight: 0.7,        // escalón máximo que sube sin saltar (bordillos, gradas)
     // tropiezo: chocar de lado con un obstáculo ya NO mata; te frena y la
@@ -111,7 +111,7 @@ export const CONFIG = {
     sidewalk: 2.4,         // acera alrededor del edificio
     gridRadius: 3,         // (2R+1)^2 manzanas vivas alrededor del jugador
     tierHeight: [2.4, 2.8],// altura de cada terraza (saltable)
-    tierSetback: 2.6,      // cuánto se estrecha cada terraza por lado (borde)
+    tierSetback: 3.4,      // terraza más ancha: se camina por el borde sin clipping
     seed: 20260801
   },
 
@@ -197,6 +197,7 @@ export const CONFIG = {
     spawnGap: 15,           // metros por detrás al aparecer / reaparecer
     captureRadius: 1.8,     // a esta distancia (m, en 3D) te ATRAPAN
     proxRange: 34,          // rango del indicador/radar de proximidad
+    climbStep: 3.0,         // escalón máx. que un policía sube por frame (trepa edificios)
     baseSpeed: 5.2,         // m/s (más lentos al principio; caminar les gana)
     burstMultiplier: 1.5,   // de vez en cuando aceleran (ráfaga)
     burstOn: [1.4, 2.6],    // s que dura cada ráfaga (aleatorio)

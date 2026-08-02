@@ -166,8 +166,10 @@ export class Police {
       const dxp = player.pos.x - u.pos.x, dzp = player.pos.z - u.pos.z;
       const d2 = Math.hypot(dxp, dzp);
       if (d2 > 0.001) { u.pos.x += (dxp / d2) * speed * dt; u.pos.z += (dzp / d2) * speed * dt; }
-      const gy = this.world.groundHeightAt(u.pos.x, u.pos.z);
-      u.pos.y = gy === null ? 0 : gy;
+      // TREPAN los edificios: su altura sigue la superficie (suben terraza a terraza)
+      const surfY = this.world.surfaceHeightAt(u.pos.x, u.pos.z, u.pos.y, POL.climbStep);
+      const targetY = surfY === null ? 0 : surfY;
+      u.pos.y += (targetY - u.pos.y) * Math.min(1, dt * 10);   // suavizado (sube/baja fluido)
       u.root.position.copy(u.pos);
       u.root.rotation.y = Math.atan2(dxp, dzp) + CONFIG.character.faceOffset; // mira al jugador
 

@@ -323,6 +323,7 @@ export class Game {
     if (this.player.dead) return;
     this.player.kill();
     this.audio.capture();
+    this.input.exitPointerLock();   // liberar el mouse: la muerte se ve clara (no "teletransporte")
     this.hud.showDeath(this.player.distance, reason);
   }
 
