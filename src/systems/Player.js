@@ -332,7 +332,9 @@ export class Player {
 
   _syncObject() {
     this.object.position.copy(this.pos);
-    this.object.rotation.y = this._faceYaw;
+    // faceOffset corrige la orientación del modelo para que mire al frente
+    // (en la dirección del movimiento), no de espaldas.
+    this.object.rotation.y = this._faceYaw + CONFIG.character.faceOffset;
   }
 
   _updateVisual(dt) { this.anim.update(dt); }

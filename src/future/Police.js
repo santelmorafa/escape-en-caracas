@@ -41,6 +41,8 @@ export class Police {
     this._px = 0; this._pz = 0;
     this.patrol = null;
     this._nearestUnit = null;
+    this._burstTimer = 3;   // primera ráfaga a los ~3 s
+    this._bursting = false;
   }
 
   async load(assetLoader) {
@@ -137,7 +139,17 @@ export class Police {
 
     this._lastDistance = player.distance;
     const D = this._difficulty(player.distance);
-    const speed = POL.baseSpeed + CONFIG.difficulty.policeSpeedGain * D;
+
+    // ráfagas de velocidad ocasionales (a veces aceleran, luego bajan)
+    this._burstTimer -= dt;
+    if (this._burstTimer <= 0) {
+      this._bursting = !this._bursting;
+      const r = this._bursting ? POL.burstOn : POL.burstOff;
+      this._burstTimer = r[0] + Math.random() * (r[1] - r[0]);
+    }
+    let speed = POL.baseSpeed + CONFIG.difficulty.policeSpeedGain * D;
+    if (this._bursting) speed *= POL.burstMultiplier;
+
     this.activeCount = THREE.MathUtils.clamp(
       2 + Math.floor(player.distance / CONFIG.difficulty.extraCopEvery), 2, POL.maxCount);
 
@@ -149,16 +161,20 @@ export class Police {
       if (!active) { u.spawned = false; continue; }
       if (!u.spawned) this._spawnUnit(u, i, player);
 
+      // persiguen en el plano (x,z); la captura es en 3D (incluye altura), así
+      // subirte a un edificio es un escape real (no te atrapan desde abajo).
       const dxp = player.pos.x - u.pos.x, dzp = player.pos.z - u.pos.z;
-      const d = Math.hypot(dxp, dzp);
-      if (d > 0.001) { u.pos.x += (dxp / d) * speed * dt; u.pos.z += (dzp / d) * speed * dt; }
+      const d2 = Math.hypot(dxp, dzp);
+      if (d2 > 0.001) { u.pos.x += (dxp / d2) * speed * dt; u.pos.z += (dzp / d2) * speed * dt; }
       const gy = this.world.groundHeightAt(u.pos.x, u.pos.z);
       u.pos.y = gy === null ? 0 : gy;
       u.root.position.copy(u.pos);
-      u.root.rotation.y = Math.atan2(dxp, dzp); // mirar al jugador
+      u.root.rotation.y = Math.atan2(dxp, dzp) + CONFIG.character.faceOffset; // mira al jugador
 
-      if (d < nearest) { nearest = d; nearestUnit = u; }
-      if (d <= POL.captureRadius && !this.caught) {
+      const dy = player.pos.y - u.pos.y;
+      const d3 = Math.hypot(dxp, dy, dzp);
+      if (d3 < nearest) { nearest = d3; nearestUnit = u; }
+      if (d3 <= POL.captureRadius && !this.caught) {
         this.caught = true;
         u.anim.play('capture', 0.12);
         if (this.onCaught) this.onCaught();

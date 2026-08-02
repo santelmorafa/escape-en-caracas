@@ -8,6 +8,8 @@ import { CONFIG } from '../config.js';
 // =============================================================================
 
 const MAX_KEY = 'escape_caracas_max_distance';
+// Versión = timestamp del build/push (inyectado por Vite; ver vite.config.js).
+const APP_VERSION = (typeof __APP_VERSION__ !== 'undefined') ? __APP_VERSION__ : 'dev';
 
 export class HUD {
   constructor(root) {
@@ -61,6 +63,7 @@ export class HUD {
             <b>W/A/S/D</b> moverte · <b>Mouse</b> mirar (clic para capturar) · <b>ESPACIO</b> saltar<br>
             <b>F</b> agacharte · <b>SHIFT</b> sprint · <b>P</b> pausa · ¡súbete a los techos!
           </div>
+          <div class="hud-version">versión ${APP_VERSION}</div>
         </div>
       </div>
 

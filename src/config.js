@@ -184,6 +184,7 @@ export const CONFIG = {
     },
     scale: 1.0,
     targetHeight: 2.15,     // altura objetivo del modelo (m) — "jugador más grande"
+    faceOffset: Math.PI,    // ajuste de orientación: el modelo mira al frente al moverse
     crossfade: 0.22         // s de transición entre animaciones
   },
 
@@ -194,9 +195,12 @@ export const CONFIG = {
     count: 3,               // policías iniciales (entre 2 y maxCount)
     maxCount: 4,
     spawnGap: 15,           // metros por detrás al aparecer / reaparecer
-    captureRadius: 1.8,     // a esta distancia (m) te ATRAPAN
+    captureRadius: 1.8,     // a esta distancia (m, en 3D) te ATRAPAN
     proxRange: 34,          // rango del indicador/radar de proximidad
-    baseSpeed: 5.9,         // m/s (menor que caminar; sprint siempre escapa)
+    baseSpeed: 5.2,         // m/s (más lentos al principio; caminar les gana)
+    burstMultiplier: 1.5,   // de vez en cuando aceleran (ráfaga)
+    burstOn: [1.4, 2.6],    // s que dura cada ráfaga (aleatorio)
+    burstOff: [6, 12],      // s entre ráfagas (aleatorio)
     formationSpread: 3.0,   // separación lateral inicial entre policías
     formationDepth: 2.4,    // escalonado en profundidad al aparecer
     uniform: 0x16244d,      // azul oscuro (uniforme)

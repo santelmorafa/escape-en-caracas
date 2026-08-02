@@ -226,6 +226,7 @@ body.touch-controls .hud-police { top: 70px; right: 16px; transform: scale(0.9);
 #hud-play:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 12px 40px rgba(24, 224, 160, 0.6); }
 .hud-menu-hint { margin-top: 24px; color: #7f95a5; font-size: 0.9rem; line-height: 1.7; }
 .hud-menu-hint b { color: #cfe0ec; }
+.hud-version { margin-top: 18px; color: #5f7382; font-size: 0.72rem; letter-spacing: 1px; font-family: monospace; }
 
 /* ---------- Pausa ---------- */
 .hud-pause-panel {

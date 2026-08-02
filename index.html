@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Nunca cachear el HTML de entrada: en cada carga se pide fresco y así el
+         teléfono siempre recibe la última versión (los JS/CSS llevan hash). -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Escape en Caracas</title>
     <link rel="stylesheet" href="/src/hud/hud.css" />
   </head>
