@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Escape en Caracas</title>
+    <link rel="stylesheet" href="/src/hud/hud.css" />
+  </head>
+  <body>
+    <!-- Canvas de render -->
+    <div id="game-root"></div>
+
+    <!-- Overlay de carga -->
+    <div id="loading-screen">
+      <div class="loading-inner">
+        <h1>ESCAPE EN CARACAS</h1>
+        <p class="tagline">Corre por la ciudad. No mires atrás.</p>
+        <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+        <p class="loading-status" id="loading-status">Cargando…</p>
+      </div>
+    </div>
+
+    <!-- HUD (lo puebla src/hud/HUD.js) -->
+    <div id="hud"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
