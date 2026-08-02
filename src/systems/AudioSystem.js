@@ -41,7 +41,7 @@ export class AudioSystem {
       this.ready = true;
 
       // Detener el audio al ocultar la pestaña y DESTRUIR el contexto al cerrarla
-      // (evita que el sonido siga sonando tras cerrar la pestaña).
+      // o al perder el foco (evita que el sonido siga sonando tras cerrar).
       this._onVis = () => {
         if (!this.ctx) return;
         if (document.hidden) { if (this.ctx.state === 'running') this.ctx.suspend(); }
@@ -49,8 +49,13 @@ export class AudioSystem {
       };
       this._onHide = () => this.dispose();
       document.addEventListener('visibilitychange', this._onVis);
-      window.addEventListener('pagehide', this._onHide);
-      window.addEventListener('beforeunload', this._onHide);
+      // pagehide/beforeunload/unload cubren cierre de pestaña y navegación;
+      // freeze cubre el ciclo de vida (bfcache/suspensión del navegador).
+      for (const ev of ['pagehide', 'beforeunload', 'unload', 'freeze']) {
+        window.addEventListener(ev, this._onHide, { capture: true });
+      }
+      // si la pestaña ya está oculta al iniciar, arrancar en silencio
+      if (document.hidden) { try { this.ctx.suspend(); } catch (_) {} }
     } catch (e) {
       console.warn('[Audio] Web Audio no disponible:', e);
     }
@@ -185,9 +190,15 @@ export class AudioSystem {
 
   // Destruye el contexto (al cerrar la pestaña) para que no quede sonido colgado.
   dispose() {
+    this._shouldPlay = false;
     try { document.removeEventListener('visibilitychange', this._onVis); } catch (_) {}
-    try { window.removeEventListener('pagehide', this._onHide); } catch (_) {}
-    try { window.removeEventListener('beforeunload', this._onHide); } catch (_) {}
-    if (this.ctx) { try { this.ctx.close(); } catch (_) {} this.ctx = null; this.ready = false; }
+    for (const ev of ['pagehide', 'beforeunload', 'unload', 'freeze']) {
+      try { window.removeEventListener(ev, this._onHide, { capture: true }); } catch (_) {}
+    }
+    if (this.ctx) {
+      try { if (this.master) this.master.gain.value = 0; } catch (_) {}
+      try { this.ctx.close(); } catch (_) {}
+      this.ctx = null; this.ready = false;
+    }
   }
 }
