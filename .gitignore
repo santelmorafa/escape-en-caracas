@@ -17,3 +17,6 @@ Thumbs.db
 
 # NOTA: public/models/*.glb SÍ se versiona (el personaje se sirve como asset
 # propio con ruta relativa en producción; pesa ~2 MB, no requiere Draco).
+
+# permisos personales de Claude Code (no versionar)
+.claude/settings.local.json
