@@ -17,11 +17,15 @@ export class DayNightCycle {
     this.police = null;         // lo asigna el Game si existe
     this.enabled = false;
     this.nightFactor = 0;
+    this.phaseOffset = 0;       // 0 = empezar de día, 0.5 = empezar de noche
   }
+
+  // Elegir en qué momento arranca el ciclo (día o noche).
+  setStartMode(mode) { this.phaseOffset = mode === 'night' ? 0.5 : 0; }
 
   // nf a partir de la distancia: coseno suave -> transición gradual y cíclica.
   _computeNightFactor(distance) {
-    const phase = (distance / CONFIG.night.cycleDistance) % 1;
+    const phase = (distance / CONFIG.night.cycleDistance + this.phaseOffset) % 1;
     const raw = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2); // 0 -> 1 -> 0
     // ensanchar un poco los "mesetas" de día/noche
     return Math.pow(raw, 0.85);

@@ -60,6 +60,7 @@ export class HUD {
           <div class="hud-record">🏆 Récord: <span id="hud-menu-record">0</span> m</div>
           <button id="hud-play">▶ JUGAR</button>
           <button class="hud-secondary" id="hud-pick-start">📍 Elegir lugar de inicio</button>
+          <button class="hud-secondary" id="hud-time-toggle">☀️ Empezar: Día</button>
           <div class="hud-start-label" id="hud-start-label">Inicio: centro de la ciudad</div>
           <div class="hud-menu-hint">
             <b>W/A/S/D</b> moverte · <b>Mouse</b> mirar (clic para capturar) · <b>ESPACIO</b> saltar<br>
@@ -136,14 +137,22 @@ export class HUD {
     this.$startLabel = $('#hud-start-label');
     this._start = { gi: 0, gj: 0 };
     this._mapCenter = { gi: 0, gj: 0 };
+    this._startTime = 'day';
+    this.$timeToggle = $('#hud-time-toggle');
     this.getTileType = null;   // (gi,gj)=>type, lo pone el Game
     this.onPickStart = null;   // (x,z,gi,gj)=>void
+    this.onSetStartTime = null; // ('day'|'night')=>void
 
     this.$max.textContent = Math.floor(this.maxDistance);
     this.$menuRecord.textContent = Math.floor(this.maxDistance);
 
     $('#hud-play').addEventListener('click', () => this.onPlay && this.onPlay());
     $('#hud-pick-start').addEventListener('click', () => this.showMap());
+    this.$timeToggle.addEventListener('click', () => {
+      this._startTime = this._startTime === 'day' ? 'night' : 'day';
+      this.$timeToggle.textContent = this._startTime === 'day' ? '☀️ Empezar: Día' : '🌙 Empezar: Noche';
+      if (this.onSetStartTime) this.onSetStartTime(this._startTime);
+    });
     $('#hud-map-done').addEventListener('click', () => this.hideMap());
     this.$mapCanvas.addEventListener('click', (e) => this._onMapClick(e));
     $('#hud-resume').addEventListener('click', () => this.onResume && this.onResume());

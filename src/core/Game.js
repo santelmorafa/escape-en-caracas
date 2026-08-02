@@ -35,6 +35,7 @@ export class Game {
     this.state = 'loading';   // loading | menu | playing | paused
     this._mb = 0;             // motion blur suavizado
     this.startPos = { x: 0, z: 0 };   // lugar de inicio (elegible en el mapa)
+    this.startTime = 'day';           // 'day' | 'night' (elegible en el menú)
   }
 
   async init(onLoadProgress) {
@@ -105,6 +106,14 @@ export class Game {
     this.hud.onToggleMute = () => { this.audio.init(); this.hud.setMute(this.audio.toggleMute()); };
     this.hud.getTileType = (gi, gj) => this.world.previewType(gi, gj);
     this.hud.onPickStart = (x, z) => { this.startPos = { x, z }; };
+    this.hud.onSetStartTime = (mode) => {
+      this.startTime = mode;
+      if (this.dayNight) {
+        this.dayNight.setStartMode(mode);
+        // previsualizar día/noche en el menú al instante
+        if (this.state !== 'playing') this.dayNight.update(0.016, this.player);
+      }
+    };
 
     // ---- postprocesado ----
     onLoadProgress?.(0.92, 'Preparando render…');
@@ -293,6 +302,7 @@ export class Game {
 
   _newGame() {
     if (this.police) this.police._lastDistance = 0;
+    if (this.dayNight) this.dayNight.setStartMode(this.startTime);   // empezar día/noche
     this.player.respawn({ x: this.startPos.x, z: this.startPos.z, distance: 0 });
     this.world.update(this.startPos.x, this.startPos.z, true);
     this.cameraSystem.snapTo(this.player);
