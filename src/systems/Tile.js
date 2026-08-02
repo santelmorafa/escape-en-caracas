@@ -52,12 +52,14 @@ export class Tile {
     if (Math.abs(gi * 31 + gj * 17) % 13 === 0) return 'landmark';
     const rng = mulberry32((C.seed ^ (gi * 73856093) ^ (gj * 19349663)) >>> 0);
     const roll = rng();
-    if (roll < 0.24) return 'tower';
-    if (roll < 0.44) return 'slab';
-    if (roll < 0.58) return 'round';
-    if (roll < 0.70) return 'twin';
-    if (roll < 0.82) return 'lowblock';
-    if (roll < 0.92) return 'plaza';
+    if (roll < 0.06) return 'tower';
+    if (roll < 0.24) return 'slab';
+    if (roll < 0.36) return 'round';
+    if (roll < 0.51) return 'twin';
+    if (roll < 0.66) return 'lblock';
+    if (roll < 0.80) return 'boxstack';
+    if (roll < 0.90) return 'lowblock';
+    if (roll < 0.96) return 'plaza';
     return 'market';
   }
 
@@ -85,12 +87,14 @@ export class Tile {
 
     const roll = rng();
     if (gi === 0 && gj === 0) this._buildPlaza(rng);           // manzana de inicio: plaza abierta
-    else if (roll < 0.24) this._buildTower(rng);               // torre escalonada (pirámide)
-    else if (roll < 0.44) this._buildSlab(rng);                // torre recta (con escalera)
-    else if (roll < 0.58) this._buildRound(rng);               // torre cilíndrica (con escalera)
-    else if (roll < 0.70) this._buildTwin(rng);                // dos bloques + puente/escaleras
-    else if (roll < 0.82) this._buildLowBlock(rng);
-    else if (roll < 0.92) this._buildPlaza(rng);
+    else if (roll < 0.06) this._buildTower(rng);               // torre escalonada (pirámide) — RARA
+    else if (roll < 0.24) this._buildSlab(rng);                // recta (escalera vertical/apoyada + a veces gradas)
+    else if (roll < 0.36) this._buildRound(rng);               // cilíndrica (escalera)
+    else if (roll < 0.51) this._buildTwin(rng);                // dos bloques (gradas + escalera apoyada)
+    else if (roll < 0.66) this._buildLBlock(rng);              // en L (gradas + escalera apoyada)
+    else if (roll < 0.80) this._buildBoxStack(rng);            // cajas apiladas y desplazadas (saltos + escalera)
+    else if (roll < 0.90) this._buildLowBlock(rng);
+    else if (roll < 0.96) this._buildPlaza(rng);
     else this._buildMarket(rng);
   }
 
@@ -100,6 +104,57 @@ export class Tile {
   }
   _addSurface(cx, cz, w, d, top) {
     this.surfaces.push({ xMin: cx - w / 2, xMax: cx + w / 2, zMin: cz - d / 2, zMax: cz + d / 2, top });
+  }
+
+  // Caja sólida (0..h) con su colisión y azotea transitable.
+  _solidBox(x, z, w, h, d, mat) {
+    const m = new THREE.Mesh(boxGeo, mat || Materials.facade(0));
+    m.scale.set(w, h, d); m.position.set(x, h / 2, z);
+    m.castShadow = true; m.receiveShadow = true;
+    this.group.add(m);
+    this._addSolid(x, z, w, d, h);
+    this._addSurface(x, z, w, d, h);
+    return m;
+  }
+
+  // Edificio en L: dos brazos de distinta altura, con gradas a uno y escalera
+  // apoyada al otro (ambas azoteas transitables).
+  _buildLBlock(rng) {
+    const S = C.tileSize - C.streetWidth - C.sidewalk * 2;
+    const arm = rand.range(rng, 9, 12);
+    const h1 = rand.range(rng, 7, 12), h2 = rand.range(rng, 9, 15);
+    const v = rand.int(rng, 0, 8);
+    const az = this.cz - S / 2 + arm / 2;       // brazo A (a lo largo de X, al fondo)
+    this._solidBox(this.cx, az, S, h1, arm, Materials.facade(v));
+    const bx = this.cx - S / 2 + arm / 2;       // brazo B (a lo largo de Z, a un lado)
+    this._solidBox(bx, this.cz, arm, h2, S, Materials.facade(v));
+    // acceso: gradas al brazo A (por su frente +z) y escalera apoyada al brazo B
+    this._buildStairs(this.cx + S / 4, az + arm / 2 + 0.4, 0, 1, h1);
+    this._addLeaningLadder(bx - arm / 2, this.cz + S / 4, h2, -1, 0);
+  }
+
+  // Cajas apiladas y DESPLAZADAS (silueta irregular, no pirámide): se sube
+  // saltando los bordes desplazados + una escalera apoyada al primer nivel.
+  _buildBoxStack(rng) {
+    const n = rand.int(rng, 3, 5);
+    const v = rand.int(rng, 0, 8);
+    let w = rand.range(rng, 11, 14), d = rand.range(rng, 11, 14);
+    let ox = 0, oz = 0, top = 0;
+    let firstTop = 0, firstBx = this.cx, firstW = w;
+    for (let k = 0; k < n; k++) {
+      top += rand.range(rng, 2.6, 3.3);
+      const bx = this.cx + ox, bz = this.cz + oz;
+      this._solidBox(bx, bz, w, top, d, Materials.facade(v));
+      if (k === 0) { firstTop = top; firstBx = bx; firstW = w; }
+      w = Math.max(6, w - rand.range(rng, 2.6, 3.6));
+      d = Math.max(6, d - rand.range(rng, 2.6, 3.6));
+      ox += (k % 2 ? -1 : 1) * rand.range(rng, 1.8, 3.2);
+      oz += (k % 2 ? 1 : -1) * rand.range(rng, 1.2, 2.4);
+    }
+    const tank = new THREE.Mesh(cylGeo, Materials.waterTank());
+    tank.scale.set(0.7, 1.2, 0.7); tank.position.set(this.cx + ox, top + 0.6, this.cz + oz); tank.castShadow = true;
+    this.group.add(tank);
+    this._addLeaningLadder(firstBx - firstW / 2, this.cz, firstTop, -1, 0);
   }
 
   // Barra (riel/travesaño) entre dos puntos, orientada con quaternion.
@@ -203,6 +258,8 @@ export class Tile {
       if (rand.chance(rng, 0.5)) this._addLadder(this.cx + s * (w / 2 + 0.5), this.cz, this.cx + s * (w / 2 + 0.5), this.cz, h, s, 0);
       else this._addLadder(this.cx, this.cz + s * (d / 2 + 0.5), this.cx, this.cz + s * (d / 2 + 0.5), h, 0, s);
     }
+    // a veces COMBINA con gradas por otra cara (dos formas de subir)
+    if (rand.chance(rng, 0.4)) this._buildStairs(this.cx, this.cz - s * (d / 2 + 0.4), 0, -s, h);
   }
 
   // Torre cilíndrica con escalera ligeramente apoyada.

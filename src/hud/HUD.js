@@ -42,6 +42,11 @@ export class HUD {
         <div class="hud-police-bar"><div class="hud-police-fill" id="hud-police-fill"></div></div>
       </div>
 
+      <!-- Minimapa: dónde estás en la ciudad (mismo estilo que el mapa de inicio) -->
+      <div class="hud-minimap" id="hud-minimap">
+        <canvas id="hud-minimap-canvas" width="176" height="176"></canvas>
+      </div>
+
       <div class="hud-toast" id="hud-toast"></div>
       <div class="hud-dazzle" id="hud-dazzle"></div>
 
@@ -132,6 +137,9 @@ export class HUD {
     this.$deathDist = $('#hud-death-dist');
     this.$deathMax = $('#hud-death-max');
     this.$muteBtn = $('#hud-mute-btn');
+    this.$minimap = $('#hud-minimap');
+    this.$miniCanvas = $('#hud-minimap-canvas');
+    this._miniTimer = 0;
     this.$map = $('#hud-map');
     this.$mapCanvas = $('#hud-map-canvas');
     this.$startLabel = $('#hud-start-label');
@@ -178,6 +186,11 @@ export class HUD {
     const d = Math.floor(player.distance);
     this.$dist.textContent = d;
     if (d > this.maxDistance) { this.maxDistance = d; this.$max.textContent = d; }
+
+    // minimapa (dónde estás) — se redibuja unas 10 veces/seg
+    this.$minimap.style.display = 'block';
+    this._miniTimer -= dt;
+    if (this._miniTimer <= 0) { this._miniTimer = 0.1; this._drawMinimap(player, police, cameraYaw); }
 
     const dazzle = police ? (police.dazzle || 0) : 0;
     const nightTint = Math.max(0, nightFactor - 0.35) * 0.28;
@@ -238,6 +251,51 @@ export class HUD {
     this.$menu.classList.add('show');
   }
 
+  // Colores compartidos del mapa/minimapa por tipo de manzana.
+  static get MAP_COLORS() {
+    return {
+      tower: '#6b8f6b', slab: '#6b7f9f', round: '#9f7f6b', twin: '#9f9f6b',
+      lblock: '#8f6b9f', boxstack: '#6b9f9f',
+      lowblock: '#7a7a7a', plaza: '#2e7d5b', market: '#b07a4a', landmark: '#ffcf5a'
+    };
+  }
+
+  // Minimapa en juego: mismo estilo que el mapa de inicio, centrado en el
+  // jugador (se desplaza bajo él) con un marcador de tu posición y dirección,
+  // más los policías. Así siempre sabes dónde estás.
+  _drawMinimap(player, police, cameraYaw) {
+    const cv = this.$miniCanvas, ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height, R = 5, T = CONFIG.city.tileSize;
+    const scale = (W / (2 * R + 1)) / T;   // metros -> px
+    const px = player.pos.x, pz = player.pos.z;
+    const colors = HUD.MAP_COLORS;
+    ctx.fillStyle = '#0b0f16'; ctx.fillRect(0, 0, W, H);
+    const pgi = Math.floor(px / T), pgj = Math.floor(pz / T), cs = T * scale;
+    for (let gi = pgi - R - 1; gi <= pgi + R + 1; gi++)
+      for (let gj = pgj - R - 1; gj <= pgj + R + 1; gj++) {
+        const rx = W / 2 + (gi * T - px) * scale, ry = H / 2 + (gj * T - pz) * scale;
+        const type = this.getTileType ? this.getTileType(gi, gj) : 'tower';
+        ctx.fillStyle = colors[type] || '#556';
+        ctx.fillRect(rx + 1, ry + 1, cs - 2, cs - 2);
+      }
+    // policías
+    if (police && police.enabled) {
+      ctx.fillStyle = '#ff4d4d';
+      for (const u of police.units) {
+        if (!u.spawned) continue;
+        const dx = W / 2 + (u.pos.x - px) * scale, dy = H / 2 + (u.pos.z - pz) * scale;
+        if (dx < 2 || dx > W - 2 || dy < 2 || dy > H - 2) continue;
+        ctx.beginPath(); ctx.arc(dx, dy, 3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // marcador del jugador (centro) con flecha de dirección
+    ctx.save();
+    ctx.translate(W / 2, H / 2); ctx.rotate(cameraYaw);
+    ctx.fillStyle = '#18e0a0';
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
   // ---- mapa para elegir lugar de inicio ----
   showMap() { this.$map.classList.add('show'); this._drawMap(); }
   hideMap() { this.$map.classList.remove('show'); }
@@ -245,10 +303,7 @@ export class HUD {
   _drawMap() {
     const cv = this.$mapCanvas, ctx = cv.getContext('2d');
     const R = 8, N = 2 * R + 1, cell = cv.width / N;
-    const colors = {
-      tower: '#6b8f6b', slab: '#6b7f9f', round: '#9f7f6b', twin: '#9f9f6b',
-      lowblock: '#7a7a7a', plaza: '#2e7d5b', market: '#b07a4a', landmark: '#ffcf5a'
-    };
+    const colors = HUD.MAP_COLORS;
     ctx.fillStyle = '#0b0f16'; ctx.fillRect(0, 0, cv.width, cv.height);
     const cgi = this._mapCenter.gi, cgj = this._mapCenter.gj;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {

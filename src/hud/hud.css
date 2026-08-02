@@ -176,6 +176,17 @@ body.touch-controls .hud-controls,
 body.touch-controls .hud-sprint { display: none; }
 body.touch-controls .hud-police { top: 70px; right: 16px; transform: scale(0.9); transform-origin: top right; }
 
+/* ---------- Minimapa en juego ---------- */
+.hud-minimap {
+  position: absolute; top: 88px; left: 24px; z-index: 20;
+  display: none; pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+}
+.hud-minimap canvas { display: block; width: 176px; height: 176px; image-rendering: pixelated; }
+body.touch-controls .hud-minimap { top: 78px; left: 16px; }
+body.touch-controls .hud-minimap canvas { width: 120px; height: 120px; }
+
 /* ---------- Deslumbramiento / tinte nocturno ---------- */
 .hud-dazzle {
   position: absolute; inset: 0; z-index: 15; pointer-events: none;
