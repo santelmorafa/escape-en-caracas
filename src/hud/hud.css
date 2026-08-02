@@ -226,6 +226,34 @@ body.touch-controls .hud-police { top: 70px; right: 16px; transform: scale(0.9);
 #hud-play:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 12px 40px rgba(24, 224, 160, 0.6); }
 .hud-menu-hint { margin-top: 24px; color: #7f95a5; font-size: 0.9rem; line-height: 1.7; }
 .hud-menu-hint b { color: #cfe0ec; }
+.hud-start-label { margin-top: 12px; color: #18e0a0; font-size: 0.9rem; font-weight: 700; }
+
+/* ---------- Mapa: elegir lugar de inicio ---------- */
+.hud-map {
+  position: absolute; inset: 0; z-index: 44;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 8, 12, 0.85); backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.hud-map.show { opacity: 1; pointer-events: auto; }
+.hud-map-panel {
+  text-align: center; padding: 24px 28px; background: var(--panel);
+  border-radius: 16px; border: 1px solid rgba(24, 224, 160, 0.35);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.hud-map-panel h2 { margin: 0 0 14px; color: var(--accent); letter-spacing: 2px; }
+#hud-map-canvas {
+  display: block; margin: 0 auto; cursor: crosshair;
+  width: min(78vw, 340px); height: min(78vw, 340px);
+  border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; background: #0b0f16;
+  image-rendering: pixelated;
+}
+.hud-map-hint { color: #9fb3c2; font-size: 0.82rem; margin: 12px 0 16px; }
+#hud-map-done {
+  pointer-events: auto; cursor: pointer; width: 100%;
+  font-size: 1.02rem; font-weight: 700; padding: 12px; border: none; border-radius: 10px;
+  background: linear-gradient(90deg, #12b98a, var(--accent)); color: #05130d;
+}
 .hud-version { margin-top: 18px; color: #5f7382; font-size: 0.72rem; letter-spacing: 1px; font-family: monospace; }
 
 /* ---------- Pausa ---------- */

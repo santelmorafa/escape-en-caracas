@@ -198,7 +198,8 @@ export const CONFIG = {
     spawnGap: 15,           // metros por detrás al aparecer / reaparecer
     captureRadius: 1.8,     // a esta distancia (m, en 3D) te ATRAPAN
     proxRange: 34,          // rango del indicador/radar de proximidad
-    climbStep: 3.0,         // escalón máx. que un policía sube por frame (trepa edificios)
+    climbStep: 1.5,         // escalón máx. que sube un policía (torpes para saltar/trepar)
+    climbLerp: 3.5,         // qué tan rápido suben (bajo = torpes, se quedan atrás)
     baseSpeed: 5.2,         // m/s (más lentos al principio; caminar les gana)
     burstMultiplier: 1.5,   // de vez en cuando aceleran (ráfaga)
     burstOn: [1.4, 2.6],    // s que dura cada ráfaga (aleatorio)

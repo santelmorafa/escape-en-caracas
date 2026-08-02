@@ -59,11 +59,23 @@ export class HUD {
           <p class="hud-tag">Parkour infinito por la ciudad. Corre. No mires atrás.</p>
           <div class="hud-record">🏆 Récord: <span id="hud-menu-record">0</span> m</div>
           <button id="hud-play">▶ JUGAR</button>
+          <button class="hud-secondary" id="hud-pick-start">📍 Elegir lugar de inicio</button>
+          <div class="hud-start-label" id="hud-start-label">Inicio: centro de la ciudad</div>
           <div class="hud-menu-hint">
             <b>W/A/S/D</b> moverte · <b>Mouse</b> mirar (clic para capturar) · <b>ESPACIO</b> saltar<br>
             <b>F</b> agacharte · <b>SHIFT</b> sprint · <b>P</b> pausa · ¡súbete a los techos!
           </div>
           <div class="hud-version">versión ${APP_VERSION}</div>
+        </div>
+      </div>
+
+      <!-- MAPA: elegir lugar de inicio -->
+      <div class="hud-map" id="hud-map">
+        <div class="hud-map-panel">
+          <h2>ELIGE DÓNDE EMPEZAR</h2>
+          <canvas id="hud-map-canvas" width="340" height="340"></canvas>
+          <p class="hud-map-hint">Toca una manzana. 🟩 plaza · 🟨 hito · empiezas en la calle de esa manzana.</p>
+          <button id="hud-map-done">Listo</button>
         </div>
       </div>
 
@@ -119,11 +131,21 @@ export class HUD {
     this.$deathDist = $('#hud-death-dist');
     this.$deathMax = $('#hud-death-max');
     this.$muteBtn = $('#hud-mute-btn');
+    this.$map = $('#hud-map');
+    this.$mapCanvas = $('#hud-map-canvas');
+    this.$startLabel = $('#hud-start-label');
+    this._start = { gi: 0, gj: 0 };
+    this._mapCenter = { gi: 0, gj: 0 };
+    this.getTileType = null;   // (gi,gj)=>type, lo pone el Game
+    this.onPickStart = null;   // (x,z,gi,gj)=>void
 
     this.$max.textContent = Math.floor(this.maxDistance);
     this.$menuRecord.textContent = Math.floor(this.maxDistance);
 
     $('#hud-play').addEventListener('click', () => this.onPlay && this.onPlay());
+    $('#hud-pick-start').addEventListener('click', () => this.showMap());
+    $('#hud-map-done').addEventListener('click', () => this.hideMap());
+    this.$mapCanvas.addEventListener('click', (e) => this._onMapClick(e));
     $('#hud-resume').addEventListener('click', () => this.onResume && this.onResume());
     $('#hud-pause-menu').addEventListener('click', () => this.onToMenu && this.onToMenu());
     $('#hud-continue').addEventListener('click', () => this.onContinue && this.onContinue());
@@ -205,6 +227,49 @@ export class HUD {
   showMenu() {
     this.$menuRecord.textContent = Math.floor(this.maxDistance);
     this.$menu.classList.add('show');
+  }
+
+  // ---- mapa para elegir lugar de inicio ----
+  showMap() { this.$map.classList.add('show'); this._drawMap(); }
+  hideMap() { this.$map.classList.remove('show'); }
+
+  _drawMap() {
+    const cv = this.$mapCanvas, ctx = cv.getContext('2d');
+    const R = 8, N = 2 * R + 1, cell = cv.width / N;
+    const colors = {
+      tower: '#6b8f6b', slab: '#6b7f9f', round: '#9f7f6b', twin: '#9f9f6b',
+      lowblock: '#7a7a7a', plaza: '#2e7d5b', market: '#b07a4a', landmark: '#ffcf5a'
+    };
+    ctx.fillStyle = '#0b0f16'; ctx.fillRect(0, 0, cv.width, cv.height);
+    const cgi = this._mapCenter.gi, cgj = this._mapCenter.gj;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const gi = cgi + (c - R), gj = cgj + (r - R);
+      const type = this.getTileType ? this.getTileType(gi, gj) : 'tower';
+      ctx.fillStyle = colors[type] || '#556';
+      ctx.fillRect(c * cell + 1.5, r * cell + 1.5, cell - 3, cell - 3);  // hueco = calles
+    }
+    // marcador del inicio elegido
+    const sc = this._start.gi - cgi + R, sr = this._start.gj - cgj + R;
+    ctx.strokeStyle = '#18e0a0'; ctx.lineWidth = 3;
+    ctx.strokeRect(sc * cell + 1, sr * cell + 1, cell - 2, cell - 2);
+    ctx.fillStyle = '#18e0a0';
+    ctx.beginPath(); ctx.arc(sc * cell + cell / 2, sr * cell + cell / 2, cell * 0.24, 0, Math.PI * 2); ctx.fill();
+  }
+
+  _onMapClick(e) {
+    const cv = this.$mapCanvas, rect = cv.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (cv.width / rect.width);
+    const y = (e.clientY - rect.top) * (cv.height / rect.height);
+    const R = 8, N = 2 * R + 1, cell = cv.width / N;
+    const c = Math.floor(x / cell), r = Math.floor(y / cell);
+    if (c < 0 || c >= N || r < 0 || r >= N) return;
+    const gi = this._mapCenter.gi + (c - R), gj = this._mapCenter.gj + (r - R);
+    this._start = { gi, gj };
+    const T = CONFIG.city.tileSize;
+    if (this.onPickStart) this.onPickStart(gi * T, gj * T, gi, gj);
+    this.$startLabel.textContent = (gi === 0 && gj === 0)
+      ? 'Inicio: centro de la ciudad' : `Inicio elegido: manzana (${gi}, ${gj})`;
+    this._drawMap();
   }
   hideMenu() { this.$menu.classList.remove('show'); }
   showPause() { this.$pause.classList.add('show'); }

@@ -50,6 +50,7 @@ export class Player {
     this._stepPhase = 0;
 
     this.distance = 0;
+    this._originX = 0; this._originZ = 0;   // punto de partida (para medir distancia)
     this.dead = false;
 
     this.anim.play('idle', 0.1);
@@ -102,7 +103,7 @@ export class Player {
     if (this.state === STATE.SLIDE) { this.slideTimer -= dt; if (this.slideTimer <= 0) this._setState(this.moving ? STATE.RUN : STATE.IDLE); }
     this._updateAnimState();
 
-    this.distance = Math.max(this.distance, Math.hypot(this.pos.x, this.pos.z));
+    this.distance = Math.max(this.distance, Math.hypot(this.pos.x - this._originX, this.pos.z - this._originZ));
 
     if (this.onGround && this.speed > 2 && (this.state === STATE.RUN || this.state === STATE.SLIDE)) {
       this._stepPhase += this.speed * dt;
@@ -310,7 +311,7 @@ export class Player {
         this.anim.play('idle', 0.12);
       }
     }
-    this.distance = Math.max(this.distance, Math.hypot(this.pos.x, this.pos.z));
+    this.distance = Math.max(this.distance, Math.hypot(this.pos.x - this._originX, this.pos.z - this._originZ));
     this._syncObject();
     this._updateVisual(dt);
   }
@@ -345,7 +346,7 @@ export class Player {
     const t = L.topY > 0 ? this._climbY / L.topY : 0;
     this.pos.set(L.bx + (L.tx - L.bx) * t, this._climbY, L.bz + (L.tz - L.bz) * t);
     this._faceYaw = Math.atan2(-L.nx, -L.nz);
-    this.distance = Math.max(this.distance, Math.hypot(this.pos.x, this.pos.z));
+    this.distance = Math.max(this.distance, Math.hypot(this.pos.x - this._originX, this.pos.z - this._originZ));
 
     // saltar para soltarse (hacia atrás)
     if (input.consume('jump')) {
@@ -389,6 +390,7 @@ export class Player {
   respawn(checkpoint) {
     this.dead = false;
     this.pos.set(checkpoint.x ?? 0, checkpoint.y ?? 0, checkpoint.z ?? 0);
+    this._originX = this.pos.x; this._originZ = this.pos.z;   // medir distancia desde aquí
     this.vel.set(0, 0, 0); this.velX = 0; this.velZ = 0; this.speed = 0;
     this.onGround = true; this.crouching = false; this._prevCrouch = false;
     this.height = CONFIG.player.standHeight;

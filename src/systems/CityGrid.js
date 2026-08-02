@@ -109,6 +109,9 @@ export class CityGrid {
 
   groundHeightAt() { return 0; }   // la calzada es continua (sin huecos)
 
+  // Tipo de manzana para el mapa del menú (sin construir).
+  previewType(gi, gj) { return Tile.typeAt(gi, gj); }
+
   getApproachingLandmark(px, pz) {
     const key = Math.floor(px / C.tileSize) + ',' + Math.floor(pz / C.tileSize);
     const t = this.active.get(key);

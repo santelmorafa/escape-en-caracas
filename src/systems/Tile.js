@@ -45,6 +45,22 @@ export class Tile {
 
   _rng() { return mulberry32((C.seed ^ (this.gi * 73856093) ^ (this.gj * 19349663)) >>> 0); }
 
+  // Tipo de manzana en (gi,gj) SIN construir nada (para el mapa del menú).
+  // Debe reflejar la misma decisión que generate().
+  static typeAt(gi, gj) {
+    if (gi === 0 && gj === 0) return 'plaza';
+    if (Math.abs(gi * 31 + gj * 17) % 13 === 0) return 'landmark';
+    const rng = mulberry32((C.seed ^ (gi * 73856093) ^ (gj * 19349663)) >>> 0);
+    const roll = rng();
+    if (roll < 0.24) return 'tower';
+    if (roll < 0.44) return 'slab';
+    if (roll < 0.58) return 'round';
+    if (roll < 0.70) return 'twin';
+    if (roll < 0.82) return 'lowblock';
+    if (roll < 0.92) return 'plaza';
+    return 'market';
+  }
+
   generate(gi, gj) {
     this.gi = gi; this.gj = gj;
     this.active = true;
@@ -116,6 +132,32 @@ export class Tile {
     this.ladders.push({ bx, bz, tx, tz, topY, nx, nz });
   }
 
+  // Escalera APOYADA que SIEMPRE llega a algo transitable: sube desde el pie en
+  // la calle hasta una plataforma/balcón al tope, contra la pared (wx,wz) de
+  // altura wallTop. Así, si existe una escalera apoyada, lleva a un sitio para
+  // continuar (el balcón conecta con la azotea).
+  _addLeaningLadder(wx, wz, wallTop, nx, nz) {
+    const topY = Math.max(3, Math.min(wallTop, 22));
+    const fx = wx + nx * 3.2, fz = wz + nz * 3.2;     // pie separado del muro
+    const tx = wx + nx * 0.45, tz = wz + nz * 0.45;   // tope apoyado en la pared
+    this._addLadder(fx, fz, tx, tz, topY, nx, nz);
+    // plataforma de aterrizaje (balcón) al tope, sobresaliendo del muro
+    const px = wx + nx * 0.7, pz = wz + nz * 0.7;
+    const w = nx !== 0 ? 1.6 : 2.6, d = nz !== 0 ? 1.6 : 2.6;
+    const plat = new THREE.Mesh(boxGeo, Materials.concrete(0x9a958c));
+    plat.scale.set(w, 0.25, d); plat.position.set(px, topY - 0.12, pz);
+    plat.castShadow = true; plat.receiveShadow = true;
+    this.group.add(plat);
+    // baranda del balcón
+    const rail = new THREE.Mesh(boxGeo, Materials.metal(0x555a60));
+    rail.scale.set(w, 0.5, 0.08);
+    rail.position.set(px + nx * (d / 2), topY + 0.25, pz + nz * (d / 2));
+    if (nx !== 0) rail.rotation.y = Math.PI / 2;
+    this.group.add(rail);
+    this._addSolid(px, pz, w, d, topY);
+    this._addSurface(px, pz, w, d, topY);
+  }
+
   // Escalera NORMAL (caminable): escalones sólidos que suben hasta topY. Desde el
   // borde (ex,ez) bajan hacia afuera en (ox,oz). Se sube andando (step-up).
   _buildStairs(ex, ez, ox, oz, topY) {
@@ -150,10 +192,17 @@ export class Tile {
     const tank = new THREE.Mesh(cylGeo, Materials.waterTank());
     tank.scale.set(0.8, 1.4, 0.8); tank.position.set(this.cx, h + 0.7, this.cz); tank.castShadow = true;
     this.group.add(tank);
-    // escalera vertical en una pared (subir a la azotea)
+    // escalera para subir a la azotea: a veces vertical, a veces APOYADA
     const s = rand.chance(rng, 0.5) ? 1 : -1;
-    if (rand.chance(rng, 0.5)) this._addLadder(this.cx + s * (w / 2 + 0.5), this.cz, this.cx + s * (w / 2 + 0.5), this.cz, h, s, 0);
-    else this._addLadder(this.cx, this.cz + s * (d / 2 + 0.5), this.cx, this.cz + s * (d / 2 + 0.5), h, 0, s);
+    if (rand.chance(rng, 0.5)) {
+      // apoyada contra una pared, con balcón arriba
+      if (rand.chance(rng, 0.5)) this._addLeaningLadder(this.cx + s * (w / 2), this.cz, h, s, 0);
+      else this._addLeaningLadder(this.cx, this.cz + s * (d / 2), h, 0, s);
+    } else {
+      // vertical pegada a la pared
+      if (rand.chance(rng, 0.5)) this._addLadder(this.cx + s * (w / 2 + 0.5), this.cz, this.cx + s * (w / 2 + 0.5), this.cz, h, s, 0);
+      else this._addLadder(this.cx, this.cz + s * (d / 2 + 0.5), this.cx, this.cz + s * (d / 2 + 0.5), h, 0, s);
+    }
   }
 
   // Torre cilíndrica con escalera ligeramente apoyada.
@@ -186,8 +235,8 @@ export class Tile {
     }
     // escaleras normales (caminables) al bloque izquierdo (borde frontal -z)
     this._buildStairs(lbx, this.cz - d / 2 - 0.4, 0, -1, h1);
-    // escalera apoyada (leaning) al bloque derecho (pie 3 m afuera)
-    this._addLadder(rbx + w / 2 + 3.0, this.cz, rbx + w / 2 + 0.4, this.cz, h2, 1, 0);
+    // escalera APOYADA al bloque derecho, con balcón arriba para continuar
+    this._addLeaningLadder(rbx + w / 2, this.cz, h2, 1, 0);
   }
 
   // Torre escalonada (climbable): cada terraza es más pequeña -> deja un borde.

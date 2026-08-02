@@ -34,6 +34,7 @@ export class Game {
     this.rootEl = rootEl;
     this.state = 'loading';   // loading | menu | playing | paused
     this._mb = 0;             // motion blur suavizado
+    this.startPos = { x: 0, z: 0 };   // lugar de inicio (elegible en el mapa)
   }
 
   async init(onLoadProgress) {
@@ -102,6 +103,8 @@ export class Game {
     this.hud.onResume = () => this.resumeGame();
     this.hud.onPauseRequest = () => { if (this.state === 'playing' && !this.player.dead) this.pauseGame(); };
     this.hud.onToggleMute = () => { this.audio.init(); this.hud.setMute(this.audio.toggleMute()); };
+    this.hud.getTileType = (gi, gj) => this.world.previewType(gi, gj);
+    this.hud.onPickStart = (x, z) => { this.startPos = { x, z }; };
 
     // ---- postprocesado ----
     onLoadProgress?.(0.92, 'Preparando render…');
@@ -290,8 +293,8 @@ export class Game {
 
   _newGame() {
     if (this.police) this.police._lastDistance = 0;
-    this.player.respawn({ x: 0, z: 0, distance: 0 });
-    this.world.update(0, 0, true);
+    this.player.respawn({ x: this.startPos.x, z: this.startPos.z, distance: 0 });
+    this.world.update(this.startPos.x, this.startPos.z, true);
     this.cameraSystem.snapTo(this.player);
     if (this.police) this.police.reset();
     this.hud.hideDeath();
@@ -330,8 +333,8 @@ export class Game {
   _respawn() {
     this.hud.hideDeath();
     this.state = 'playing';
-    this.player.respawn({ x: 0, z: 0, distance: 0 });
-    this.world.update(0, 0, true);
+    this.player.respawn({ x: this.startPos.x, z: this.startPos.z, distance: 0 });
+    this.world.update(this.startPos.x, this.startPos.z, true);
     this.cameraSystem.snapTo(this.player);
     if (this.police) this.police.reset();
     this.input.requestPointerLock();
