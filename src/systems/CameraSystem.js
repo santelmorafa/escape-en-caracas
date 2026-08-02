@@ -2,42 +2,53 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 
 // =============================================================================
-// CameraSystem — cámara en tercera persona detrás y por encima del jugador,
-// con suavizado (lerp) de posición y objetivo. Sigue el desplazamiento lateral
-// de forma amortiguada para que el corredor se sienta vivo.
+// CameraSystem — cámara orbital en tercera persona controlada por el MOUSE.
+// El mouse gira yaw/pitch; la cámara orbita alrededor del jugador. El `yaw` se
+// expone para que el jugador se mueva relativo a hacia dónde miras.
 // =============================================================================
 
 export class CameraSystem {
   constructor(aspect) {
     const c = CONFIG.camera;
     this.camera = new THREE.PerspectiveCamera(c.fov, aspect, c.near, c.far);
-    this._pos = new THREE.Vector3(0, c.offset.y, c.offset.z);
-    this._look = new THREE.Vector3(0, c.lookAtHeight, -10);
-    this.camera.position.copy(this._pos);
+    this.yaw = c.startYaw;
+    this.pitch = 0.25;
+    this._pos = new THREE.Vector3();
+    this._pivot = new THREE.Vector3();
+  }
+
+  // Aplica el movimiento del mouse (deltas en px) a yaw/pitch.
+  applyMouse(dx, dy) {
+    const c = CONFIG.camera;
+    this.yaw -= dx * c.sensitivity;
+    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * c.sensitivity, c.minPitch, c.maxPitch);
+  }
+
+  // Dirección "hacia adelante" en el plano (para el movimiento del jugador).
+  get forward() {
+    return new THREE.Vector3(Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+  }
+  get right() {
+    return new THREE.Vector3(Math.cos(this.yaw), 0, Math.sin(this.yaw));
   }
 
   update(player, dt) {
     const c = CONFIG.camera;
     const p = player.pos;
+    this._pivot.set(p.x, p.y + c.pivotHeight, p.z);
 
-    // objetivo de posición: detrás (+z) y arriba, siguiendo X amortiguado
-    const targetX = p.x * c.lateralFollow;
+    const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    // detrás del jugador = -forward; se eleva con el pitch
+    const behind = new THREE.Vector3(-Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const desired = new THREE.Vector3(
-      targetX + c.offset.x,
-      p.y + c.offset.y,
-      p.z + c.offset.z
+      this._pivot.x + behind.x * c.distance * cp,
+      this._pivot.y + c.distance * sp,
+      this._pivot.z + behind.z * c.distance * cp
     );
-    this._pos.lerp(desired, 1 - Math.pow(1 - c.positionLerp, dt * 60));
+    const k = 1 - Math.pow(1 - c.followLerp, dt * 60);
+    this._pos.lerp(desired, k);
     this.camera.position.copy(this._pos);
-
-    // objetivo de mirada: un poco adelante del jugador
-    const lookDesired = new THREE.Vector3(
-      p.x * c.lateralFollow * 0.6,
-      p.y + c.lookAtHeight,
-      p.z - 8
-    );
-    this._look.lerp(lookDesired, 1 - Math.pow(1 - c.lookLerp, dt * 60));
-    this.camera.lookAt(this._look);
+    this.camera.lookAt(this._pivot);
   }
 
   onResize(aspect) {
@@ -45,12 +56,18 @@ export class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
-  // snap inmediato (al reaparecer)
   snapTo(player) {
     const c = CONFIG.camera;
-    this._pos.set(player.pos.x + c.offset.x, player.pos.y + c.offset.y, player.pos.z + c.offset.z);
-    this._look.set(player.pos.x, player.pos.y + c.lookAtHeight, player.pos.z - 8);
+    const p = player.pos;
+    this._pivot.set(p.x, p.y + c.pivotHeight, p.z);
+    const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    const behind = new THREE.Vector3(-Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    this._pos.set(
+      this._pivot.x + behind.x * c.distance * cp,
+      this._pivot.y + c.distance * sp,
+      this._pivot.z + behind.z * c.distance * cp
+    );
     this.camera.position.copy(this._pos);
-    this.camera.lookAt(this._look);
+    this.camera.lookAt(this._pivot);
   }
 }

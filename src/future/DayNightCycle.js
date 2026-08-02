@@ -34,7 +34,7 @@ export class DayNightCycle {
 
     this.lighting.applyNight(nf);
     this.environment.applyNight(nf);
-    this.nightLights.update(player.pos.z, player.pos.x, nf);
+    this.nightLights.update(player.pos.x, player.pos.z, nf);
     Materials.setNight(nf);
     if (this.police && this.police.setNight) this.police.setNight(nf);
   }

@@ -37,7 +37,20 @@ export class AudioSystem {
       this._buildAmbience();
       this._buildSiren();
       this._noteTime = now + 0.1;
+      this._shouldPlay = true;
       this.ready = true;
+
+      // Detener el audio al ocultar la pestaña y DESTRUIR el contexto al cerrarla
+      // (evita que el sonido siga sonando tras cerrar la pestaña).
+      this._onVis = () => {
+        if (!this.ctx) return;
+        if (document.hidden) { if (this.ctx.state === 'running') this.ctx.suspend(); }
+        else if (this._shouldPlay) { this.ctx.resume(); this._noteTime = this.ctx.currentTime + 0.1; }
+      };
+      this._onHide = () => this.dispose();
+      document.addEventListener('visibilitychange', this._onVis);
+      window.addEventListener('pagehide', this._onHide);
+      window.addEventListener('beforeunload', this._onHide);
     } catch (e) {
       console.warn('[Audio] Web Audio no disponible:', e);
     }
@@ -157,10 +170,24 @@ export class AudioSystem {
     return this.muted;
   }
 
-  // Bajar el volumen general al pausar / estar en menú (sin cortar del todo).
+  // Pausa/reanuda TODO el audio suspendiendo el AudioContext (se corta de
+  // verdad: ambiente, sirena, música). Al reanudar, evita ráfaga de notas.
   setActive(on) {
     if (!this.ready) return;
-    const base = this.muted ? 0 : A.master;
-    this.master.gain.setTargetAtTime(on ? base : base * 0.35, this.ctx.currentTime, 0.2);
+    this._shouldPlay = on;
+    if (on) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      this._noteTime = this.ctx.currentTime + 0.1;
+    } else {
+      if (this.ctx.state === 'running') this.ctx.suspend();
+    }
+  }
+
+  // Destruye el contexto (al cerrar la pestaña) para que no quede sonido colgado.
+  dispose() {
+    try { document.removeEventListener('visibilitychange', this._onVis); } catch (_) {}
+    try { window.removeEventListener('pagehide', this._onHide); } catch (_) {}
+    try { window.removeEventListener('beforeunload', this._onHide); } catch (_) {}
+    if (this.ctx) { try { this.ctx.close(); } catch (_) {} this.ctx = null; this.ready = false; }
   }
 }

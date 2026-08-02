@@ -49,6 +49,18 @@ export const Materials = {
     });
   },
 
+  // Suelo grande de la ciudad (asfalto muy repetido para el plano que sigue al jugador).
+  ground() {
+    return cached('ground', () => {
+      const t = PT.asphalt(64);
+      return new THREE.MeshStandardMaterial({
+        map: t.map, normalMap: t.normalMap,
+        roughness: 0.96, metalness: 0.0,
+        normalScale: new THREE.Vector2(0.7, 0.7)
+      });
+    });
+  },
+
   // Fachadas variadas para dar diversidad urbana.
   facade(variant = 0) {
     const palettes = [

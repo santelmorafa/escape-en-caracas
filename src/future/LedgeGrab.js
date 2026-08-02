@@ -32,7 +32,7 @@ export class LedgeGrab {
     const LG = CONFIG.ledgeGrab;
     const feetY = p.pos.y, px = p.pos.x, pz = p.pos.z;
 
-    const surfaces = this.world.getNearbySurfaces(pz, 6);
+    const surfaces = this.world.getNearbySurfaces(px, pz);
     let best = null, bestScore = Infinity;
 
     for (const s of surfaces) {

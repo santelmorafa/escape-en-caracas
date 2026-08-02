@@ -1,54 +1,53 @@
-import { CONFIG } from '../config.js';
-
 // =============================================================================
-// CollisionSystem — colisiones AABB contra los obstáculos cercanos.
-// Interpreta el `pass` de cada obstáculo:
-//   'over'   -> chocas si vas por el suelo y no lo saltaste (puedes subirte)
-//   'under'  -> chocas si tu cabeza pega en la barra (hay que deslizarse)
-//   'around' -> chocas si vas por el suelo contra su lateral (puedes saltar
-//               encima y quedarte en el techo: en el aire no hay choque lateral)
-// Chocar YA NO mata: devuelve el impacto para que el Game lo trate como
-// TROPIEZO (frena y acerca a la policía). Morir es caer a un hueco (lo ve Game).
+// CollisionSystem — colisión SÓLIDA horizontal. Los edificios (muros del
+// corredor), obstáculos y azoteas son duros: el jugador no los atraviesa,
+// resbala a lo largo de ellos. Se resuelve por ejes (X y luego Z) usando AABB
+// expandidas por el radio del jugador, considerando el solape VERTICAL (así
+// puedes pararte encima de una caja, o pasar agachado bajo una barra alta).
 // =============================================================================
 
-const MARGIN = 0.14;  // tolerancia para no penalizar por roces mínimos
+const EPS = 0.02;
 
 export class CollisionSystem {
   constructor(world) {
     this.world = world;
   }
 
-  check(player) {
-    const pb = player.collisionBox;
-    const pxMin = pb.min.x + MARGIN, pxMax = pb.max.x - MARGIN;
-    const pzMin = pb.min.z + MARGIN, pzMax = pb.max.z - MARGIN;
-    const feet = player.pos.y;
-    const head = player.pos.y + player.height;
+  // Devuelve {x,z} corregidos para que (nx,nz) no penetre ningún sólido.
+  resolveHorizontal(pos, nx, nz, height, radius) {
+    const feet = pos.y, head = pos.y + height;
+    const solids = this.world.getNearbyColliders(pos.x, pos.z);
 
-    const near = this.world.getNearbyColliders(player.pos.z, 20);
-    for (const c of near) {
-      const b = c.box;
-      if (pxMax < b.min.x || pxMin > b.max.x) continue;
-      if (pzMax < b.min.z || pzMin > b.max.z) continue;
+    const vOverlap = (b) => b.min.y < head - EPS && b.max.y > feet + EPS;
 
-      switch (c.pass) {
-        case 'under':
-          // pegas con la cabeza en la barra alta (saltar no ayuda: hay que agacharse)
-          if (head > b.min.y + MARGIN && feet < b.max.y - MARGIN) return this._hit(c);
-          break;
-        case 'over':
-        case 'around':
-        default:
-          // sólido: sólo cuenta si vas por el SUELO contra el lateral. En el aire
-          // no hay choque lateral -> puedes saltar y caer encima (subir a techos).
-          if (player.onGround && feet < b.max.y - MARGIN) return this._hit(c);
-          break;
+    // ---- eje X ----
+    let rx = nx;
+    for (const s of solids) {
+      const b = s.box;
+      if (!vOverlap(b)) continue;
+      const minX = b.min.x - radius, maxX = b.max.x + radius;
+      const minZ = b.min.z - radius, maxZ = b.max.z + radius;
+      if (rx > minX && rx < maxX && pos.z > minZ && pos.z < maxZ) {
+        if (pos.x <= b.min.x) rx = minX;
+        else if (pos.x >= b.max.x) rx = maxX;
+        else rx = (Math.abs(rx - minX) < Math.abs(rx - maxX)) ? minX : maxX;
       }
     }
-    return null;
-  }
 
-  _hit(collider) {
-    return { pass: collider.pass };
+    // ---- eje Z (con la X ya resuelta) ----
+    let rz = nz;
+    for (const s of solids) {
+      const b = s.box;
+      if (!vOverlap(b)) continue;
+      const minX = b.min.x - radius, maxX = b.max.x + radius;
+      const minZ = b.min.z - radius, maxZ = b.max.z + radius;
+      if (rx > minX && rx < maxX && rz > minZ && rz < maxZ) {
+        if (pos.z <= b.min.z) rz = minZ;
+        else if (pos.z >= b.max.z) rz = maxZ;
+        else rz = (Math.abs(rz - minZ) < Math.abs(rz - maxZ)) ? minZ : maxZ;
+      }
+    }
+
+    return { x: rx, z: rz };
   }
 }

@@ -34,8 +34,12 @@ export class MobileControls {
     root.className = 'mc-root';
     root.innerHTML = `
       <div class="mc-cluster mc-left">
-        <button class="mc-btn mc-lat" data-hold="left" aria-label="Izquierda">◀</button>
-        <button class="mc-btn mc-lat" data-hold="right" aria-label="Derecha">▶</button>
+        <div class="mc-dpad">
+          <button class="mc-btn mc-dir mc-up" data-hold="forward" aria-label="Adelante">▲</button>
+          <button class="mc-btn mc-dir mc-dl" data-hold="left" aria-label="Izquierda">◀</button>
+          <button class="mc-btn mc-dir mc-dr" data-hold="right" aria-label="Derecha">▶</button>
+          <button class="mc-btn mc-dir mc-down" data-hold="back" aria-label="Atrás">▼</button>
+        </div>
       </div>
       <div class="mc-cluster mc-right">
         <button class="mc-btn mc-crouch" data-hold="crouch" aria-label="Agacharse">

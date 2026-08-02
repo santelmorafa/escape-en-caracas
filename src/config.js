@@ -22,16 +22,18 @@ export const CONFIG = {
     fog: { color: 0xbfc9d1, near: 60, far: 340 }
   },
 
-  // ---- Cámara tercera persona ---------------------------------------------
+  // ---- Cámara tercera persona ORBITAL (mouse look) ------------------------
   camera: {
-    fov: 62,
+    fov: 64,
     near: 0.1,
     far: 1200,
-    offset: { x: 0, y: 4.2, z: 7.5 }, // detrás y elevada
-    lookAtHeight: 1.6,
-    positionLerp: 0.08,               // suavizado de posición
-    lookLerp: 0.12,                   // suavizado del objetivo
-    lateralFollow: 0.9                // cuánto sigue el desplazamiento lateral
+    distance: 6.8,          // distancia orbital detrás del jugador
+    pivotHeight: 2.0,       // altura del punto al que mira (cabeza)
+    minPitch: -0.25,        // rad (mirar un poco hacia abajo)
+    maxPitch: 0.95,         // rad (mirar hacia arriba)
+    sensitivity: 0.0024,    // sensibilidad del mouse
+    followLerp: 0.2,        // suavizado de posición de la cámara
+    startYaw: 0             // yaw 0 => mirando hacia -Z
   },
 
   // ---- Jugador -------------------------------------------------------------
@@ -60,9 +62,20 @@ export const CONFIG = {
     stumbleCooldown: 0.8    // s de inmunidad para no encadenar tropiezos
   },
 
+  // ---- Movimiento libre (tercera persona, relativo a la cámara) -----------
+  // El personaje YA NO corre solo: se mueve con WASD relativo a hacia dónde
+  // mira la cámara (mouse). W adelante, S atrás, A/D lateral, SHIFT sprint.
+  freeMove: {
+    walkSpeed: 6.8,         // m/s adelante / lateral
+    backSpeed: 4.2,         // m/s hacia atrás (S)
+    sprintMultiplier: 1.75, // sprint ~11.9 m/s
+    accel: 16,              // qué tan rápido alcanza la velocidad objetivo
+    turnLerp: 0.22          // suavizado del giro del modelo hacia el movimiento
+  },
+
   // ---- Sprint con cooldown (visible en HUD) --------------------------------
   sprint: {
-    multiplier: 1.55,
+    multiplier: 1.55,       // (compat; el sprint de movimiento usa freeMove)
     duration: 3.2,          // s de sprint
     cooldown: 4.5           // s de recarga
   },
@@ -87,11 +100,26 @@ export const CONFIG = {
     sprintDamp: 0.5         // "estela" máxima del afterimage en sprint (0 = off)
   },
 
-  // ---- Mundo / generación procedural --------------------------------------
+  // ---- Ciudad abierta (rejilla de manzanas) -------------------------------
+  // El mundo ya no es un corredor: es una CUADRÍCULA de calles en X y Z con
+  // manzanas de edificios. Puedes girar en calles laterales, tomar rutas
+  // distintas y SUBIRTE a los edificios (torres escalonadas tipo "pastel de
+  // bodas": cada terraza es un borde al que saltas/te agarras).
+  city: {
+    tileSize: 56,          // tamaño de cada manzana (m)
+    streetWidth: 16,       // ancho de calle entre edificios
+    sidewalk: 2.4,         // acera alrededor del edificio
+    gridRadius: 3,         // (2R+1)^2 manzanas vivas alrededor del jugador
+    tierHeight: [2.4, 2.8],// altura de cada terraza (saltable)
+    tierSetback: 2.6,      // cuánto se estrecha cada terraza por lado (borde)
+    seed: 20260801
+  },
+
+  // ---- Mundo / generación procedural (compat / valores compartidos) -------
   world: {
     chunkLength: 40,        // m por chunk
     chunksAhead: 8,         // cuántos chunks vivos por delante
-    chunksBehind: 2,        // se reciclan al quedar detrás
+    chunksBehind: 4,        // más margen atrás (ahora se puede retroceder)
     roadWidth: 17,
     sidewalkWidth: 4,
     warmupChunks: 3,        // primeros chunks sin obstáculos ni huecos
@@ -160,19 +188,20 @@ export const CONFIG = {
   },
 
   // ---- Policía (persecución) ----------------------------------------------
+  // Persecución en 3D REAL: cada policía tiene posición propia y persigue la
+  // posición del jugador; te atrapa al entrar en captureRadius.
   police: {
     count: 3,               // policías iniciales (entre 2 y maxCount)
     maxCount: 4,
-    startGap: 18,           // metros por detrás al empezar / reaparecer
-    minGap: 1.7,            // a esta distancia te ATRAPAN
-    maxGap: 46,             // no se dibujan más lejos (siguen acechando)
-    baseSpeed: 12.6,        // m/s base (rebalance: arranque más justo)
-    stumbleGapLoss: 5.0,    // metros que la policía recorta cuando tropiezas
-    formationSpread: 2.8,   // separación lateral entre policías
-    formationDepth: 2.6,    // escalonado en profundidad entre policías
+    spawnGap: 15,           // metros por detrás al aparecer / reaparecer
+    captureRadius: 1.8,     // a esta distancia (m) te ATRAPAN
+    proxRange: 34,          // rango del indicador/radar de proximidad
+    baseSpeed: 5.9,         // m/s (menor que caminar; sprint siempre escapa)
+    formationSpread: 3.0,   // separación lateral inicial entre policías
+    formationDepth: 2.4,    // escalonado en profundidad al aparecer
     uniform: 0x16244d,      // azul oscuro (uniforme)
     cap: 0x0d1730,          // gorra
-    skin: 0x9a7658          // tono de piel para manos/cara del override
+    skin: 0x9a7658          // tono de piel
   },
 
   // ---- Ciclo día/noche -----------------------------------------------------
@@ -211,10 +240,10 @@ export const CONFIG = {
 
   // ---- Dificultad progresiva ----------------------------------------------
   difficulty: {
-    rampDistance: 2000,     // rebalance: rampa más larga y gradual
-    policeSpeedGain: 3.8,   // m/s extra de la policía a dificultad máxima
+    rampDistance: 2000,     // a esta distancia se alcanza la dificultad "alta"
+    policeSpeedGain: 3.4,   // m/s extra de la policía a dificultad máxima (~9.3)
     extraCopEvery: 700,     // cada X m se suma un policía (hasta maxCount)
-    startGapTighten: 4.0    // m menos de ventaja inicial a dificultad máxima
+    startGapTighten: 3.0    // m menos de ventaja inicial a dificultad máxima
   },
 
   // ---- FEATURES futuras (hooks listos, implementación en src/future/) ------

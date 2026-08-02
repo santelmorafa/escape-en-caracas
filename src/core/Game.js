@@ -7,9 +7,8 @@ import { Input } from '../systems/Input.js';
 import { CameraSystem } from '../systems/CameraSystem.js';
 import { AnimationSystem } from '../systems/AnimationSystem.js';
 import { Player } from '../systems/Player.js';
-import { WorldGenerator } from '../systems/WorldGenerator.js';
+import { CityGrid } from '../systems/CityGrid.js';
 import { CollisionSystem } from '../systems/Collision.js';
-import { CheckpointSystem } from '../systems/Checkpoints.js';
 import { Environment } from '../systems/Environment.js';
 import { Lighting } from '../systems/Lighting.js';
 import { NightLights } from '../systems/NightLights.js';
@@ -64,9 +63,8 @@ export class Game {
     // ---- sistemas de mundo/entorno ----
     this.environment = new Environment(this.scene);
     this.lighting = new Lighting(this.scene);
-    this.world = new WorldGenerator(this.scene);
+    this.world = new CityGrid(this.scene);
     this.world.init();
-    this.checkpoints = new CheckpointSystem(this.scene);
 
     // ---- cámara ----
     this.cameraSystem = new CameraSystem(window.innerWidth / window.innerHeight);
@@ -90,7 +88,13 @@ export class Game {
 
     // ---- input / colisión / hud ----
     this.input = new Input();
+    this.input.setCanvas(this.renderer.domElement);   // mouse look (pointer lock)
     this.collision = new CollisionSystem(this.world);
+    this.player.collision = this.collision;           // colisión sólida del jugador
+    // re-capturar el mouse al hacer clic mientras juegas
+    this.renderer.domElement.addEventListener('click', () => {
+      if (this.state === 'playing' && !this.player.dead) this.input.requestPointerLock();
+    });
     this.hud = new HUD(document.getElementById('hud'));
     this.hud.onContinue = () => this._respawn();
     this.hud.onToMenu = () => this.toMenu();
@@ -115,9 +119,6 @@ export class Game {
       this.police.onCaught = () => this._die('police');
       if (this.dayNight) this.dayNight.police = this.police; // linternas/sirena
     }
-
-    // ---- checkpoints -> HUD + sonido ----
-    this.checkpoints.onReached = (dist) => { this.hud.toast(`✔ Checkpoint ${dist} m`); this.audio.checkpoint(); };
 
     // ---- eventos ----
     window.addEventListener('resize', () => this._onResize());
@@ -170,6 +171,7 @@ export class Game {
 
     // ---- MENÚ: sólo animar en reposo y renderizar de fondo ----
     if (this.state === 'menu') {
+      this.input.consumeMouse();
       this.anim.update(dt);
       this.post.setMotionBlur(0);
       this.render();
@@ -180,29 +182,32 @@ export class Game {
     if (this.state === 'playing' && !p.dead && this.input.consume('pause')) { this.pauseGame(); return; }
     if (this.state === 'paused') {
       if (this.input.consume('pause')) this.resumeGame();
-      else { this.render(); return; }
+      else { this.input.consumeMouse(); this.render(); return; }
     }
 
     // reaparecer con ENTER cuando estás muerto
     if (p.dead && this.input.consume('restart')) { this._respawn(); return; }
 
+    // mouse look -> gira la cámara; el movimiento del jugador es relativo a ella
+    const mv = this.input.consumeMouse();
+    this.cameraSystem.applyMouse(mv.dx, mv.dy);
+
     // 1) jugador + eventos (audio/partículas)
-    p.update(dt, this.input, this.world);
+    p.update(dt, this.input, this.world, this.cameraSystem.yaw);
     if (!p.dead) this._handleEvents(p);
 
-    // 2) mundo + entorno + luces siguen al jugador
-    this.world.update(p.pos.z);
+    // 2) mundo (ciudad) + entorno + luces siguen al jugador
+    this.world.update(p.pos.x, p.pos.z);
     this.environment.update(p.pos.z, p.pos.x);
     this.lighting.update(p);
 
     // 3) ciclo día/noche + persecución policial (linternas/sirena)
     if (this.dayNight) this.dayNight.update(dt, p);
-    if (this.police) this.police.update(dt, p);
+    if (this.police) this.police.update(dt, p, this.cameraSystem.yaw);
 
-    // 4) checkpoints + avisos de hitos
+    // 4) avisos de hitos al entrar en su manzana
     if (!p.dead) {
-      this.checkpoints.update(p);
-      const lm = this.world.getApproachingLandmark(p.pos.z);
+      const lm = this.world.getApproachingLandmark(p.pos.x, p.pos.z);
       if (lm) this.hud.toast(`📍 ${lm.label}`, 2.4);
     }
 
@@ -212,15 +217,8 @@ export class Game {
       if (grab) p.grabLedge(grab);
     }
 
-    // 5) colisiones (tropiezo) + muerte por caída al vacío
-    if (!p.dead && p.state !== 'ledge') {
-      const hit = this.collision.check(p);
-      if (hit && p.stumble() && this.police) {
-        this.police.onPlayerStumble();
-        this.hud.toast('¡Tropezaste!', 1.0);
-      }
-      if (p.pos.y < -2.5) this._die('fall');
-    }
+    // 5) muerte por caída al vacío (los edificios/obstáculos son sólidos)
+    if (!p.dead && p.state !== 'ledge' && p.pos.y < -2.5) this._die('fall');
 
     // 6) audio de tensión + motion blur + partículas
     const prox = this.police ? this.police.proximity : 0;
@@ -231,7 +229,7 @@ export class Game {
 
     // 7) cámara + HUD + táctil + resolución adaptativa + render
     this.cameraSystem.update(p, dt);
-    this.hud.update(p, dt, this.police, nf);
+    this.hud.update(p, dt, this.police, nf, this.cameraSystem.yaw);
     if (this.mobile) this.mobile.update(p);
     this._adaptResolution(dt);
     this.render();
@@ -275,23 +273,25 @@ export class Game {
     this._newGame();
     this.hud.hideMenu();
     this.state = 'playing';
+    this.input.consumeMouse();
+    this.input.requestPointerLock();
   }
 
-  pauseGame() { this.state = 'paused'; this.hud.showPause(); this.audio.setActive(false); }
-  resumeGame() { this.state = 'playing'; this.hud.hidePause(); this.audio.setActive(true); }
+  pauseGame() { this.state = 'paused'; this.hud.showPause(); this.audio.setActive(false); this.input.exitPointerLock(); }
+  resumeGame() { this.state = 'playing'; this.hud.hidePause(); this.audio.setActive(true); this.input.consumeMouse(); this.input.requestPointerLock(); }
   toMenu() {
     this.hud.hidePause(); this.hud.hideDeath();
     this._newGame();
     this.audio.setActive(false);
+    this.input.exitPointerLock();
     this.state = 'menu';
     this.hud.showMenu();
   }
 
   _newGame() {
-    this.checkpoints.reset();
     if (this.police) this.police._lastDistance = 0;
-    this.player.respawn({ z: 0, y: 0, distance: 0 });
-    this.world.update(this.player.pos.z);
+    this.player.respawn({ x: 0, z: 0, distance: 0 });
+    this.world.update(0, 0, true);
     this.cameraSystem.snapTo(this.player);
     if (this.police) this.police.reset();
     this.hud.hideDeath();
@@ -329,11 +329,11 @@ export class Game {
   _respawn() {
     this.hud.hideDeath();
     this.state = 'playing';
-    const cp = this.checkpoints.respawnPoint;
-    this.player.respawn(cp);
-    this.world.update(this.player.pos.z);
+    this.player.respawn({ x: 0, z: 0, distance: 0 });
+    this.world.update(0, 0, true);
     this.cameraSystem.snapTo(this.player);
     if (this.police) this.police.reset();
+    this.input.requestPointerLock();
   }
 
   render() {

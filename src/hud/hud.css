@@ -87,10 +87,15 @@ html, body {
   background: repeating-linear-gradient(90deg, transparent 0 32px, rgba(120,200,255,0.08) 32px 33px);
 }
 .hud-radar-player {
-  position: absolute; left: 50%; bottom: 4px; width: 10px; height: 10px;
-  transform: translateX(-50%);
+  position: absolute; left: 50%; top: 50%; width: 11px; height: 11px;
+  transform: translate(-50%, -50%);
   background: #18e0a0; border-radius: 50%;
   box-shadow: 0 0 10px #18e0a0;
+}
+.hud-radar-player::after { /* cono de visión (hacia arriba = adelante) */
+  content: ''; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+  border-left: 9px solid transparent; border-right: 9px solid transparent;
+  border-bottom: 16px solid rgba(24,224,160,0.18);
 }
 .hud-radar-cop {
   position: absolute; width: 9px; height: 9px; border-radius: 50%;
@@ -132,6 +137,14 @@ html, body {
 .mc-btn.active { transform: scale(0.92); background: rgba(24, 224, 160, 0.5); border-color: #18e0a0; }
 
 .mc-lat { width: clamp(70px, 18vmin, 96px); height: clamp(70px, 18vmin, 96px); font-size: 2.1rem; }
+
+/* d-pad de movimiento (adelante/atrás/lados) */
+.mc-dpad { position: relative; width: clamp(150px, 42vmin, 210px); height: clamp(150px, 42vmin, 210px); }
+.mc-dir { position: absolute; width: clamp(54px, 15vmin, 74px); height: clamp(54px, 15vmin, 74px); font-size: 1.7rem; }
+.mc-up { left: 50%; top: 0; margin-left: calc(clamp(54px, 15vmin, 74px) / -2); }
+.mc-down { left: 50%; bottom: 0; margin-left: calc(clamp(54px, 15vmin, 74px) / -2); }
+.mc-dl { left: 0; top: 50%; margin-top: calc(clamp(54px, 15vmin, 74px) / -2); }
+.mc-dr { right: 0; top: 50%; margin-top: calc(clamp(54px, 15vmin, 74px) / -2); }
 
 /* cluster derecho: acciones repartidas para el pulgar */
 .mc-right .mc-btn { position: absolute; }

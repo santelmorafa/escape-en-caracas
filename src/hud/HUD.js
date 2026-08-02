@@ -47,7 +47,7 @@ export class HUD {
       <button class="hud-mute-btn" id="hud-mute-btn" title="Silenciar (M)">🔊</button>
 
       <div class="hud-controls">
-        W avanzar · A/D lateral · ESPACIO saltar · S deslizar · SHIFT sprint · <b>P/Esc pausa</b>
+        <b>WASD</b> mover · <b>Mouse</b> mirar · ESPACIO saltar · F agacharse · SHIFT sprint · <b>P pausa</b>
       </div>
 
       <!-- MENÚ DE INICIO -->
@@ -58,8 +58,8 @@ export class HUD {
           <div class="hud-record">🏆 Récord: <span id="hud-menu-record">0</span> m</div>
           <button id="hud-play">▶ JUGAR</button>
           <div class="hud-menu-hint">
-            <b>W</b> avanzar · <b>A/D</b> lados · <b>ESPACIO</b> saltar (¡súbete a los techos!)<br>
-            <b>S</b> deslizarte · <b>SHIFT</b> sprint · <b>P/Esc</b> pausa
+            <b>W/A/S/D</b> moverte · <b>Mouse</b> mirar (clic para capturar) · <b>ESPACIO</b> saltar<br>
+            <b>F</b> agacharte · <b>SHIFT</b> sprint · <b>P</b> pausa · ¡súbete a los techos!
           </div>
         </div>
       </div>
@@ -69,10 +69,11 @@ export class HUD {
         <div class="hud-pause-panel">
           <h2>PAUSA</h2>
           <table class="hud-keys">
-            <tr><td><kbd>W</kbd></td><td>Acelerar</td></tr>
+            <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>Adelante / atrás</td></tr>
             <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>Moverte de lado</td></tr>
+            <tr><td><kbd>Mouse</kbd></td><td>Mirar alrededor (clic para capturar)</td></tr>
             <tr><td><kbd>ESPACIO</kbd></td><td>Saltar / subir a azoteas</td></tr>
-            <tr><td><kbd>S</kbd> / <kbd>Ctrl</kbd></td><td>Agacharte / deslizarte</td></tr>
+            <tr><td><kbd>F</kbd></td><td>Agacharte / deslizarte</td></tr>
             <tr><td><kbd>SHIFT</kbd></td><td>Sprint (aleja a la policía)</td></tr>
             <tr><td><kbd>P</kbd> / <kbd>Esc</kbd></td><td>Pausa · <kbd>M</kbd> silencio</td></tr>
           </table>
@@ -91,9 +92,9 @@ export class HUD {
           <h2 id="hud-death-title">¡TE ATRAPARON!</h2>
           <p class="hud-death-dist">Llegaste a <span id="hud-death-dist">0</span> m</p>
           <p class="hud-death-max">Distancia máxima: <span id="hud-death-max">0</span> m</p>
-          <button id="hud-continue">Continuar desde el checkpoint</button>
+          <button id="hud-continue">Reintentar</button>
           <button class="hud-secondary" id="hud-death-menu">Menú principal</button>
-          <p class="hud-death-hint">(ENTER para continuar)</p>
+          <p class="hud-death-hint">(ENTER para reintentar)</p>
         </div>
       </div>
     `;
@@ -139,7 +140,7 @@ export class HUD {
     this._toastTimer = 0;
   }
 
-  update(player, dt, police, nightFactor = 0) {
+  update(player, dt, police, nightFactor = 0, cameraYaw = 0) {
     const d = Math.floor(player.distance);
     this.$dist.textContent = d;
     if (d > this.maxDistance) { this.maxDistance = d; this.$max.textContent = d; }
@@ -161,7 +162,7 @@ export class HUD {
     this.$sprintFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
     this.$sprintFill.className = 'hud-sprint-fill ' + cls;
 
-    if (police && police.enabled) { this.$police.style.display = 'block'; this._updatePolice(police); }
+    if (police && police.enabled) { this.$police.style.display = 'block'; this._updatePolice(police, cameraYaw); }
 
     if (this._toastTimer > 0) {
       this._toastTimer -= dt;
@@ -169,21 +170,25 @@ export class HUD {
     }
   }
 
-  _updatePolice(police) {
+  _updatePolice(police, cameraYaw) {
     const prox = Math.max(0, Math.min(1, police.proximity));
     this.$policeFill.style.width = (prox * 100) + '%';
     this.$policeFill.style.background = `hsl(${(1 - prox) * 90}, 85%, 50%)`;
     this.$police.classList.toggle('danger', prox > 0.7);
 
-    const W = CONFIG.world.roadWidth, maxGap = CONFIG.police.maxGap;
-    const units = police.radarUnits();
+    // radar CENTRADO en el jugador; los policías se ubican por su posición
+    // relativa a la cámara (adelante = arriba). El radio cubre proxRange metros.
+    const range = CONFIG.police.proxRange;
+    const units = police.radarUnits(cameraYaw);
     for (let i = 0; i < this._radarDots.length; i++) {
       const dot = this._radarDots[i], u = units[i];
       if (!u) { dot.style.display = 'none'; continue; }
       dot.style.display = 'block';
-      dot.style.left = Math.max(0, Math.min(100, ((u.dx / W) + 0.5) * 100)) + '%';
-      dot.style.top = Math.max(0, Math.min(96, 100 * (1 - Math.min(1, u.dz / maxGap)))) + '%';
-      const near = 1 - Math.min(1, u.dz / maxGap);
+      const px = 50 + (u.dx / range) * 50;
+      const py = 50 - (u.dz / range) * 50;   // adelante -> arriba
+      dot.style.left = Math.max(3, Math.min(97, px)) + '%';
+      dot.style.top = Math.max(3, Math.min(97, py)) + '%';
+      const near = 1 - Math.min(1, Math.hypot(u.dx, u.dz) / range);
       dot.style.background = `hsl(${(1 - near) * 90}, 90%, 55%)`;
     }
   }

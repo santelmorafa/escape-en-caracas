@@ -40,21 +40,33 @@ npm run preview
 
 ## Controles
 
-| Tecla | Acción |
+Movimiento LIBRE en tercera persona (el personaje ya no corre solo):
+
+| Tecla / Mouse | Acción |
 |-------|--------|
-| **W** | Acelerar el avance |
-| **A / D** | Movimiento lateral |
+| **W / S** | Adelante / atrás |
+| **A / D** | Moverte de lado |
+| **Mouse** | Mirar alrededor (haz clic en el juego para capturar el cursor) |
 | **ESPACIO** | Saltar (súbete a las azoteas) |
-| **S** o **Ctrl** | Agacharse / deslizarse |
-| **SHIFT** | Sprint (con cooldown, visible en el HUD) — te aleja de la policía |
-| **H** o **F1** | Abrir/cerrar la pantalla de ayuda (pausa el juego) |
-| **ENTER** | Reaparecer tras ser atrapado |
+| **F** | Agacharte / deslizarte (pasar bajo andamios) |
+| **SHIFT** | Sprint (con cooldown en el HUD) — te aleja de la policía |
+| **P / Esc** | Pausa · **M** silenciar · **ENTER** reaparecer |
 
-El personaje **rueda automáticamente** al aterrizar de caídas altas, y se
-**agarra automáticamente del borde** cuando un salto a una azotea se queda corto
-por poco (se cuelga y trepa solo). Si el salto se queda demasiado corto, cae normal.
+Te mueves **relativo a hacia dónde mira la cámara**. Los **edificios y obstáculos
+son sólidos**: no los atraviesas (resbalas al tocarlos). El personaje **rueda**
+al caer fuerte y se **agarra del borde** si un salto queda corto. Si pulsas **F
+mientras corres**, el personaje **se desliza** (para pasar bajo obstáculos).
 
-**P** o **Esc** pausan · **M** silencia · **H**/**F1** también abren la pausa.
+La **policía te persigue en 3D** y aparece por distintas calles: gira con el mouse
+para verlos venir; un **radar** (centrado en ti) muestra su posición relativa.
+
+### Ciudad abierta 🏙️
+El mundo es una **cuadrícula de calles** (no un corredor): puedes girar en calles
+laterales, tomar rutas distintas y explorar en cualquier dirección — la ciudad se
+genera infinita alrededor de ti. Los **edificios son escalonados** (tipo "pastel
+de bodas"): cada terraza es un borde saltable, así que **puedes subirte a los
+edificios** terraza por terraza hasta la azotea y correr por las alturas. Hay
+torres, edificios bajos, plazas con palmeras y mercados con kioscos.
 
 ### Menú, pausa y récord
 El juego arranca en un **menú** con el nombre y el **récord** (mayor distancia
@@ -161,16 +173,17 @@ src/
     Input.js                ← teclado -> estado neutro (táctil escribirá aquí)
     Player.js               ← física ligera + máquina de estados de movimiento
     AnimationSystem.js      ← pipeline Mixamo: modelo GLB + clips + crossfade
-    CameraSystem.js         ← 3ª persona con lerp, sigue el lateral
-    WorldGenerator.js       ← corredor infinito: pool de chunks + hitos
-    Chunk.js                ← segmento reciclable (suelo persistente, contenido regenerable)
-    Collision.js            ← AABB según cómo se supera cada obstáculo
-    Checkpoints.js          ← marcadores cada 300 m + reaparición
+    CameraSystem.js         ← 3ª persona orbital (mouse look)
+    CityGrid.js             ← ciudad abierta en rejilla 2D: pool de manzanas + suelo
+    Tile.js                 ← una manzana (torre climbable / plaza / mercado / hito)
+    Collision.js            ← colisión sólida horizontal (edificios/obstáculos duros)
+    NightLights.js          ← faroles (pool de luces) en las intersecciones
+    Particles.js            ← polvo (Points) al rodar/deslizar/aterrizar
+    AudioSystem.js          ← audio sintetizado (pasos, sirena, música de tensión)
     Environment.js          ← cielo, niebla y El Ávila permanente
-    Lighting.js             ← sol/hemisferio (hook setTimeOfDay para día/noche)
-    PostProcessing.js       ← EffectComposer: bloom + SSAO opcional
+    Lighting.js             ← sol/hemisferio (día/noche)
+    PostProcessing.js       ← EffectComposer: bloom + SSAO + motion blur
   entities/
-    BuildingFactory.js      ← edificios caraqueños (balcones, tanques de agua)
     CarFactory.js           ← carros realistas simplificados
     ObstacleFactory.js      ← obstáculos con metadato de "cómo superarlos"
     LandmarkFactory.js      ← Obelisco, El Silencio, Parque Central, Torre de David
@@ -185,16 +198,16 @@ src/
     MobileControls.js       ← botones táctiles (ACTIVO en táctil)
     LedgeGrab.js            ← agarre automático de bordes (ACTIVO)
   utils/
-    Rng.js                  ← RNG determinista por chunk (mismo seed = mismo mundo)
+    Rng.js                  ← RNG determinista (mismo seed = misma ciudad)
 ```
 
 ### Flujo por frame (`Game._update(dt)`)
-1. `Player.update` (input → movimiento/física, conduce animaciones)
-2. `WorldGenerator.update` (recicla chunks), `Environment`/`Lighting` siguen al jugador
-3. Features futuras (si activas): `DayNightCycle`, `Police`
-4. `Checkpoints.update` + avisos de hitos
-5. `Collision.check` + muerte por caída → pantalla de muerte
-6. `CameraSystem.update` + `HUD.update`
+1. Mouse look → `CameraSystem.yaw`; `Player.update` (movimiento libre + colisión sólida)
+2. `CityGrid.update` (recicla manzanas), `Environment`/`Lighting` siguen al jugador
+3. `DayNightCycle` + `Police` (persecución 3D)
+4. Avisos de hitos + agarre de bordes
+5. Muerte (te atrapa la policía) → pantalla de muerte
+6. Audio de tensión + motion blur + partículas + `CameraSystem`/`HUD`
 7. `PostProcessing.render`
 
 ### Cómo activar una feature futura
