@@ -10,7 +10,7 @@ import { CONFIG } from '../config.js';
 // Estados: idle | run | jump | slide(agachado) | roll | dead | ledge
 // =============================================================================
 
-const STATE = { IDLE: 'idle', RUN: 'run', JUMP: 'jump', SLIDE: 'slide', ROLL: 'roll', DEAD: 'dead', LEDGE: 'ledge' };
+const STATE = { IDLE: 'idle', RUN: 'run', JUMP: 'jump', SLIDE: 'slide', ROLL: 'roll', DEAD: 'dead', LEDGE: 'ledge', LADDER: 'ladder' };
 
 export class Player {
   constructor(anim) {
@@ -41,6 +41,11 @@ export class Player {
     this.stumbleCooldown = 0;
     this._ledgeCooldown = 0;
 
+    // escaleras (ladder climb)
+    this.ladder = null;
+    this._climbY = 0;
+    this._ladderCooldown = 0;
+
     this._events = [];
     this._stepPhase = 0;
 
@@ -64,10 +69,16 @@ export class Player {
   update(dt, input, world, cameraYaw = 0) {
     if (this.dead) { this._updateVisual(dt); return; }
     if (this.state === STATE.LEDGE) { this._updateLedge(dt); return; }
+    if (this.state === STATE.LADDER) { this._updateLadder(dt, input, world); return; }
 
     if (this.stumbleTimer > 0) this.stumbleTimer -= dt;
     if (this.stumbleCooldown > 0) this.stumbleCooldown -= dt;
     if (this._ledgeCooldown > 0) this._ledgeCooldown -= dt;
+    if (this._ladderCooldown > 0) this._ladderCooldown -= dt;
+
+    // engancharse a una escalera (cerca de su base y pulsando adelante)
+    if (this.onGround && input.state.forward && this._ladderCooldown <= 0
+      && world && world.getNearbyLadders && this._tryAttachLadder(world)) return;
 
     this._updateSprint(dt, input);
 
@@ -272,7 +283,7 @@ export class Player {
     this.height = CONFIG.player.standHeight;
     this._ledgePhase = 'hang';
     this._ledgeTimer = LG.hangDuration;
-    this.anim.play(this.anim.hasRealClip('ledge') ? 'ledge' : 'idle', 0.1);
+    this.anim.play('ledge', 0.1);   // brazos arriba (agarrándose del borde)
     this._syncObject();
   }
 
@@ -283,7 +294,7 @@ export class Player {
       if (this._ledgeTimer <= 0) {
         this._ledgePhase = 'climb';
         this._ledgeTimer = LG.climbDuration;
-        this.anim.play(this.anim.hasRealClip('climb') ? 'climb' : 'run', 0.1);
+        this.anim.play('climb', 0.1);   // brazos siguen agarrando mientras se iza
       }
     } else {
       const t = 1 - Math.max(0, this._ledgeTimer) / LG.climbDuration;
@@ -302,6 +313,68 @@ export class Player {
     this.distance = Math.max(this.distance, Math.hypot(this.pos.x, this.pos.z));
     this._syncObject();
     this._updateVisual(dt);
+  }
+
+  // ---- escaleras (ladder climb) ----
+  _tryAttachLadder(world) {
+    const ladders = world.getNearbyLadders(this.pos.x, this.pos.z);
+    let best = null, bd = 1.6;
+    for (const l of ladders) {
+      const d = Math.hypot(this.pos.x - l.bx, this.pos.z - l.bz);
+      if (d < bd) { bd = d; best = l; }
+    }
+    if (!best) return false;
+    this.ladder = best;
+    this.state = STATE.LADDER;
+    this._climbY = Math.max(0.2, this.pos.y);
+    this.vel.set(0, 0, 0); this.velX = 0; this.velZ = 0; this.speed = 0;
+    this.onGround = false;
+    this._faceYaw = Math.atan2(-best.nx, -best.nz);   // mirar hacia la pared
+    this.anim.play('ledge', 0.12);                    // brazos agarrando
+    this._syncObject();
+    return true;
+  }
+
+  _updateLadder(dt, input, world) {
+    const L = this.ladder, P = CONFIG.player;
+    if (!L) { this.state = STATE.IDLE; return; }
+    if (input.state.forward) this._climbY += P.ladderSpeed * dt;
+    else if (input.state.back) this._climbY -= P.ladderSpeed * dt;
+    this._climbY = THREE.MathUtils.clamp(this._climbY, 0, L.topY);
+
+    const t = L.topY > 0 ? this._climbY / L.topY : 0;
+    this.pos.set(L.bx + (L.tx - L.bx) * t, this._climbY, L.bz + (L.tz - L.bz) * t);
+    this._faceYaw = Math.atan2(-L.nx, -L.nz);
+    this.distance = Math.max(this.distance, Math.hypot(this.pos.x, this.pos.z));
+
+    // saltar para soltarse (hacia atrás)
+    if (input.consume('jump')) {
+      this.onGround = false; this.vel.y = P.jumpVelocity * 0.55;
+      this.velX = -L.nx * 4; this.velZ = -L.nz * 4;
+      this._exitLadder(STATE.JUMP);
+      this._updateVisual(dt); return;
+    }
+    // llegar arriba -> subir a la azotea
+    if (this._climbY >= L.topY - 0.05) {
+      this.pos.set(L.tx - L.nx * 1.2, L.topY, L.tz - L.nz * 1.2);
+      this.onGround = true; this._exitLadder(STATE.IDLE);
+      this._syncObject(); this._updateVisual(dt); return;
+    }
+    // bajar al suelo -> soltar
+    if (this._climbY <= 0.03 && input.state.back) {
+      this.onGround = true; this._exitLadder(STATE.IDLE);
+      this._syncObject(); this._updateVisual(dt); return;
+    }
+    this._syncObject();
+    this._updateVisual(dt);
+  }
+
+  _exitLadder(next) {
+    this.ladder = null;
+    this._ladderCooldown = 0.4;
+    this.velX = 0; this.velZ = 0;
+    this.state = next;
+    this.anim.play(next === STATE.JUMP ? 'jump' : 'idle', 0.12);
   }
 
   stumble() { return false; }   // (compat: los sólidos ya bloquean el paso)
@@ -324,6 +397,7 @@ export class Player {
     this.sprintTimer = CONFIG.sprint.duration;
     this.sprintCooldown = 0;
     this.stumbleTimer = 0; this.stumbleCooldown = 0; this._ledgeCooldown = 0;
+    this.ladder = null; this._ladderCooldown = 0;
     this.distance = Math.max(0, checkpoint.distance ?? 0);
     this.anim.resetPose();
     this.anim.play('idle', 0.05);   // arrancar en reposo (no corriendo)

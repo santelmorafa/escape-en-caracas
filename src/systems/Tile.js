@@ -30,6 +30,7 @@ export class Tile {
     this.cx = 0; this.cz = 0;
     this.colliders = [];
     this.surfaces = [];
+    this.ladders = [];       // [{bx,bz,tx,tz,topY,nx,nz}] escaleras trepables
     this.landmark = null;
     this.active = false;
   }
@@ -38,6 +39,7 @@ export class Tile {
     for (let i = this.group.children.length - 1; i >= 0; i--) this.group.remove(this.group.children[i]);
     this.colliders.length = 0;
     this.surfaces.length = 0;
+    this.ladders.length = 0;
     this.landmark = null;
   }
 
@@ -67,9 +69,12 @@ export class Tile {
 
     const roll = rng();
     if (gi === 0 && gj === 0) this._buildPlaza(rng);           // manzana de inicio: plaza abierta
-    else if (roll < 0.5) this._buildTower(rng);
-    else if (roll < 0.68) this._buildLowBlock(rng);
-    else if (roll < 0.84) this._buildPlaza(rng);
+    else if (roll < 0.24) this._buildTower(rng);               // torre escalonada (pirámide)
+    else if (roll < 0.44) this._buildSlab(rng);                // torre recta (con escalera)
+    else if (roll < 0.58) this._buildRound(rng);               // torre cilíndrica (con escalera)
+    else if (roll < 0.70) this._buildTwin(rng);                // dos bloques + puente/escaleras
+    else if (roll < 0.82) this._buildLowBlock(rng);
+    else if (roll < 0.92) this._buildPlaza(rng);
     else this._buildMarket(rng);
   }
 
@@ -79,6 +84,110 @@ export class Tile {
   }
   _addSurface(cx, cz, w, d, top) {
     this.surfaces.push({ xMin: cx - w / 2, xMax: cx + w / 2, zMin: cz - d / 2, zMax: cz + d / 2, top });
+  }
+
+  // Barra (riel/travesaño) entre dos puntos, orientada con quaternion.
+  _bar(mat, a, b, thick) {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const L = Math.hypot(dx, dy, dz) || 0.01;
+    const m = new THREE.Mesh(boxGeo, mat);
+    m.scale.set(thick, L, thick);
+    m.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
+    m.castShadow = true;
+    this.group.add(m);
+  }
+
+  // Escalera TREPABLE (vertical o apoyada): rieles + travesaños. Base en (bx,bz),
+  // cima en (tx,tz,topY). (nx,nz) = normal hacia afuera de la pared. Registra el
+  // dato para que el jugador pueda trepar (Player STATE.LADDER).
+  _addLadder(bx, bz, tx, tz, topY, nx, nz) {
+    const mat = Materials.metal(0x6a6f77);
+    const sx = nz * 0.32, sz = -nx * 0.32;   // separación lateral de los rieles
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    this._bar(mat, V(bx + sx, 0, bz + sz), V(tx + sx, topY, tz + sz), 0.08);
+    this._bar(mat, V(bx - sx, 0, bz - sz), V(tx - sx, topY, tz - sz), 0.08);
+    const rungs = Math.max(3, Math.floor(topY / 0.5));
+    for (let i = 1; i < rungs; i++) {
+      const t = i / rungs;
+      const rx = bx + (tx - bx) * t, ry = topY * t, rz = bz + (tz - bz) * t;
+      this._bar(mat, V(rx + sx, ry, rz + sz), V(rx - sx, ry, rz - sz), 0.055);
+    }
+    this.ladders.push({ bx, bz, tx, tz, topY, nx, nz });
+  }
+
+  // Escalera NORMAL (caminable): escalones sólidos que suben hasta topY. Desde el
+  // borde (ex,ez) bajan hacia afuera en (ox,oz). Se sube andando (step-up).
+  _buildStairs(ex, ez, ox, oz, topY) {
+    const rise = 0.5, run = 0.72;
+    const n = Math.max(2, Math.ceil(topY / rise));
+    const mat = Materials.concrete(0x9a958c);
+    for (let k = 0; k < n; k++) {
+      const y = topY - k * rise;
+      if (y <= 0.05) break;
+      const px = ex + ox * (k * run + run / 2);
+      const pz = ez + oz * (k * run + run / 2);
+      const w = ox !== 0 ? run : 3.0, d = oz !== 0 ? run : 3.0;
+      const step = new THREE.Mesh(boxGeo, mat);
+      step.scale.set(w, y, d); step.position.set(px, y / 2, pz);
+      step.castShadow = true; step.receiveShadow = true;
+      this.group.add(step);
+      this._addSolid(px, pz, w, d, y);
+      this._addSurface(px, pz, w, d, y);
+    }
+  }
+
+  // Torre recta (no pirámide) con escalera vertical en una pared.
+  _buildSlab(rng) {
+    const w = rand.range(rng, 10, 16), d = rand.range(rng, 10, 16);
+    const h = rand.range(rng, 9, 22);
+    const m = new THREE.Mesh(boxGeo, Materials.facade(rand.int(rng, 0, 8)));
+    m.scale.set(w, h, d); m.position.set(this.cx, h / 2, this.cz);
+    m.castShadow = true; m.receiveShadow = true;
+    this.group.add(m);
+    this._addSolid(this.cx, this.cz, w, d, h);
+    this._addSurface(this.cx, this.cz, w, d, h);
+    const tank = new THREE.Mesh(cylGeo, Materials.waterTank());
+    tank.scale.set(0.8, 1.4, 0.8); tank.position.set(this.cx, h + 0.7, this.cz); tank.castShadow = true;
+    this.group.add(tank);
+    // escalera vertical en una pared (subir a la azotea)
+    const s = rand.chance(rng, 0.5) ? 1 : -1;
+    if (rand.chance(rng, 0.5)) this._addLadder(this.cx + s * (w / 2 + 0.5), this.cz, this.cx + s * (w / 2 + 0.5), this.cz, h, s, 0);
+    else this._addLadder(this.cx, this.cz + s * (d / 2 + 0.5), this.cx, this.cz + s * (d / 2 + 0.5), h, 0, s);
+  }
+
+  // Torre cilíndrica con escalera ligeramente apoyada.
+  _buildRound(rng) {
+    const r = rand.range(rng, 6, 9), h = rand.range(rng, 9, 20);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.04, h, 16), Materials.facade(rand.int(rng, 0, 8)));
+    body.position.set(this.cx, h / 2, this.cz); body.castShadow = true; body.receiveShadow = true;
+    this.group.add(body);
+    this._addSolid(this.cx, this.cz, r * 1.75, r * 1.75, h);
+    this._addSurface(this.cx, this.cz, r * 1.5, r * 1.5, h);
+    const tank = new THREE.Mesh(cylGeo, Materials.waterTank());
+    tank.scale.set(0.7, 1.2, 0.7); tank.position.set(this.cx, h + 0.6, this.cz); tank.castShadow = true;
+    this.group.add(tank);
+    this._addLadder(this.cx, this.cz + r + 0.6, this.cx, this.cz + r * 0.92, h, 0, 1);
+  }
+
+  // Dos bloques con callejón: escaleras normales a uno y escalera apoyada al otro.
+  _buildTwin(rng) {
+    const w = rand.range(rng, 7, 9), d = rand.range(rng, 10, 16);
+    const gap = rand.range(rng, 4, 7);
+    const h1 = rand.range(rng, 7, 14), h2 = rand.range(rng, 8, 16);
+    const lbx = this.cx - (gap / 2 + w / 2), rbx = this.cx + (gap / 2 + w / 2);
+    for (const [bx, hh] of [[lbx, h1], [rbx, h2]]) {
+      const m = new THREE.Mesh(boxGeo, Materials.facade(rand.int(rng, 0, 8)));
+      m.scale.set(w, hh, d); m.position.set(bx, hh / 2, this.cz);
+      m.castShadow = true; m.receiveShadow = true;
+      this.group.add(m);
+      this._addSolid(bx, this.cz, w, d, hh);
+      this._addSurface(bx, this.cz, w, d, hh);
+    }
+    // escaleras normales (caminables) al bloque izquierdo (borde frontal -z)
+    this._buildStairs(lbx, this.cz - d / 2 - 0.4, 0, -1, h1);
+    // escalera apoyada (leaning) al bloque derecho (pie 3 m afuera)
+    this._addLadder(rbx + w / 2 + 3.0, this.cz, rbx + w / 2 + 0.4, this.cz, h2, 1, 0);
   }
 
   // Torre escalonada (climbable): cada terraza es más pequeña -> deja un borde.

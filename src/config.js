@@ -46,7 +46,8 @@ export const CONFIG = {
     lateralSpeed: 9,        // m/s al pulsar A/D
     corridorHalfWidth: 8.5, // límite lateral (el corredor mide ~17m)
     gravity: -32,
-    jumpVelocity: 15.5,     // apex ~3.75 m: subes a las terrazas con holgura (limpio)
+    jumpVelocity: 18.0,     // apex ~5.1 m: salto más alto para escalar mejor
+    ladderSpeed: 4.5,       // m/s al trepar una escalera
     hardLandingVy: -18,     // caídas más rápidas que esto disparan el roll
     slideDuration: 0.85,    // s
     slideSpeedBoost: 1.15,

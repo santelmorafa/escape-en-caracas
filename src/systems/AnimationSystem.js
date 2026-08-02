@@ -185,12 +185,43 @@ export class AnimationSystem {
       roll:    { enter: () => { this._rollT = 0; this._rolling = true; }, exit: () => { this._rolling = false; } },
       jump:    { enter: () => { this._jumpTilt = 1; }, exit: () => { this._jumpTilt = 0; } },
       death:   { enter: () => { this._deathT = 0; this._dying = true; }, exit: () => { this._dying = false; } },
-      capture: { enter: () => { this._capturing = true; }, exit: () => { this._capturing = false; } }
+      capture: { enter: () => { this._capturing = true; }, exit: () => { this._capturing = false; } },
+      // agarrarse / trepar: los brazos suben a "agarrar" el borde o la escalera
+      ledge:   { enter: () => { this._reachTarget = 1; }, exit: () => { this._reachTarget = 0; } },
+      climb:   { enter: () => { this._reachTarget = 1; }, exit: () => { this._reachTarget = 0; } }
     };
     this._targetCrouch = 0; this._crouch = 0;
     this._rolling = false; this._rollT = 0;
     this._dying = false; this._deathT = 0;
     this._jumpTilt = 0; this._capturing = false;
+    this._reach = 0; this._reachTarget = 0;
+    this._cacheArms();
+  }
+
+  // Localiza los huesos de los brazos y guarda su pose de reposo + la pose de
+  // "agarre" (manos arriba/adelante). Se aplica encima de la animación base.
+  _cacheArms() {
+    let lU, rU, lF, rF;
+    this.model.traverse((o) => {
+      if (!o.isBone) return;
+      const n = o.name.toLowerCase();
+      if (n.includes('forearm')) {
+        if (n.includes('left') && !lF) lF = o; else if (n.includes('right') && !rF) rF = o;
+      } else if (n.includes('arm') && !n.includes('shoulder') && !n.includes('clav')) {
+        if (n.includes('left') && !lU) lU = o; else if (n.includes('right') && !rU) rU = o;
+      }
+    });
+    const mk = (b) => (b ? { bone: b, rest: b.quaternion.clone() } : null);
+    this._arms = { lU: mk(lU), rU: mk(rU), lF: mk(lF), rF: mk(rF) };
+    const E = new THREE.Euler();
+    this._reachQ = {
+      lU: new THREE.Quaternion().setFromEuler(E.set(0.5, 0, -2.0)),
+      rU: new THREE.Quaternion().setFromEuler(E.set(0.5, 0, 2.0)),
+      lF: new THREE.Quaternion().setFromEuler(E.set(-0.95, 0, 0)),
+      rF: new THREE.Quaternion().setFromEuler(E.set(-0.95, 0, 0))
+    };
+    this._idQ = new THREE.Quaternion();
+    this._tmpQ = new THREE.Quaternion();
   }
 
   hasRealClip(name) {
@@ -248,6 +279,17 @@ export class AnimationSystem {
       const target = 0.5;
       m.rotation.x += (target - m.rotation.x) * Math.min(1, dt * 12);
     }
+
+    // brazos agarrándose (borde/escalera): sobrescribe la pose de los brazos
+    this._reach += (this._reachTarget - this._reach) * Math.min(1, dt * 10);
+    if (this._arms && this._reach > 0.01) {
+      for (const k of ['lU', 'rU', 'lF', 'rF']) {
+        const a = this._arms[k];
+        if (!a) continue;
+        this._tmpQ.copy(this._idQ).slerp(this._reachQ[k], this._reach); // offset parcial
+        a.bone.quaternion.copy(a.rest).multiply(this._tmpQ);
+      }
+    }
   }
 
   resetPose() {
@@ -256,6 +298,7 @@ export class AnimationSystem {
     this.model.scale.setScalar(this.baseScale);
     this._targetCrouch = 0; this._crouch = 0;
     this._rolling = false; this._dying = false; this._capturing = false;
+    this._reachTarget = 0;
     this.currentName = null;
     this.play('run', 0.05);
   }

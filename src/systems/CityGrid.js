@@ -83,6 +83,17 @@ export class CityGrid {
     return out;
   }
 
+  getNearbyLadders(x, z) {
+    const pi = Math.floor(x / C.tileSize), pj = Math.floor(z / C.tileSize);
+    const out = [];
+    for (let di = -1; di <= 1; di++)
+      for (let dj = -1; dj <= 1; dj++) {
+        const t = this.active.get((pi + di) + ',' + (pj + dj));
+        if (t) for (const l of t.ladders) out.push(l);
+      }
+    return out;
+  }
+
   // Altura de la superficie transitable (suelo=0 o tope de edificio) en (x,z).
   surfaceHeightAt(x, z, feetY = 0, step = 0) {
     let best = 0;
